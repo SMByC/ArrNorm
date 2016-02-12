@@ -1,5 +1,5 @@
 import os, os.path, sys, re
-from cStringIO import StringIO
+from io import StringIO
 
 class Header(dict):
     """
@@ -71,7 +71,7 @@ class Header(dict):
     def __str__(self):
         fs=StringIO()
         fs.write("ENVI"+'\n')
-        order=self.keys()
+        order=list(self.keys())
         for key in self.outputorder:
             try:
                 i=order.index(key)

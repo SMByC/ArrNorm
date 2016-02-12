@@ -163,11 +163,12 @@ And now, my famous members
 """
 
 # http://www.python.org/doc/2.2.3/whatsnew/node5.html
-from __future__ import generators
+
 
 __version__ = "$URL: http://pypng.googlecode.com/svn/trunk/code/png.py $ $Rev: 201 $"
 
 from array import array
+from functools import reduce
 try: # See :pyver:old
     import itertools
 except:
@@ -200,7 +201,7 @@ _adam7 = ((0, 0, 8, 8),
 def group(s, n):
     # See
     # http://www.python.org/doc/2.6/library/functions.html#zip
-    return zip(*[iter(s)]*n)
+    return list(zip(*[iter(s)]*n))
 
 def isarray(x):
     """Same as ``isinstance(x, array)`` except on Python 2.2, where it
@@ -736,15 +737,15 @@ class Writer:
                 a.extend([0]*int(extra))
                 # Pack into bytes
                 l = group(a, spb)
-                l = map(lambda e: reduce(lambda x,y:
-                                           (x << self.bitdepth) + y, e), l)
+                l = [reduce(lambda x,y:
+                                           (x << self.bitdepth) + y, e) for e in l]
                 data.extend(l)
         if self.rescale:
             oldextend = extend
             factor = \
               float(2**self.rescale[1]-1) / float(2**self.rescale[0]-1)
             def extend(sl):
-                oldextend(map(lambda x: int(round(factor*x)), sl))
+                oldextend([int(round(factor*x)) for x in sl])
 
         # Build the first row, testing mostly to see if we need to
         # changed the extend function to cope with NumPy integer types
@@ -759,7 +760,7 @@ class Writer:
         # :todo: Certain exceptions in the call to ``.next()`` or the
         # following try would indicate no row data supplied.
         # Should catch.
-        i,row = enumrows.next()
+        i,row = next(enumrows)
         try:
             # If this fails...
             extend(row)
@@ -769,7 +770,7 @@ class Writer:
             # types, there are probably lots of other, unknown, "nearly"
             # int types it works for.
             def wrapmapint(f):
-                return lambda sl: f(map(int, sl))
+                return lambda sl: f(list(map(int, sl)))
             extend = wrapmapint(extend)
             del wrapmapint
             extend(row)
@@ -1362,12 +1363,12 @@ class Reader:
             spb = 8//self.bitdepth
             out = array('B')
             mask = 2**self.bitdepth - 1
-            shifts = map(self.bitdepth.__mul__, reversed(range(spb)))
+            shifts = list(map(self.bitdepth.__mul__, reversed(list(range(spb)))))
             for o in raw:
-                out.extend(map(lambda i: mask&(o>>i), shifts))
+                out.extend([mask&(o>>i) for i in shifts])
             return out[:width]
 
-        return itertools.imap(asvalues, rows)
+        return map(asvalues, rows)
 
     def serialtoflat(self, bytes, width=None):
         """Convert serial format (byte stream) pixel data to flat row
@@ -1387,7 +1388,7 @@ class Reader:
         spb = 8//self.bitdepth
         out = array('B')
         mask = 2**self.bitdepth - 1
-        shifts = map(self.bitdepth.__mul__, reversed(range(spb)))
+        shifts = list(map(self.bitdepth.__mul__, reversed(list(range(spb)))))
         l = width
         for o in bytes:
             out.extend(map(lambda i: mask&(o>>i), shifts)[:l])
@@ -1609,7 +1610,7 @@ class Reader:
             while True:
                 try:
                     type, data = self.chunk()
-                except ValueError, e:
+                except ValueError as e:
                     raise ChunkError(e.args[0])
                 if type == 'IEND':
                     # http://www.w3.org/TR/PNG/#11IEND
@@ -1651,7 +1652,7 @@ class Reader:
             arraycode = 'BH'[self.bitdepth>8]
             # Like :meth:`group` but producing an array.array object for
             # each row.
-            pixels = itertools.imap(lambda *row: array(arraycode, row),
+            pixels = map(lambda *row: array(arraycode, row),
                        *[iter(self.deinterlace(raw))]*self.width*self.planes)
         else:
             pixels = self.iterboxed(self.iterstraight(raw))
@@ -1704,7 +1705,7 @@ class Reader:
         if self.trns or alpha == 'force':
             trns = array('B', self.trns or '')
             trns.extend([255]*(len(plte)-len(trns)))
-            plte = map(operator.add, plte, group(trns, 1))
+            plte = list(map(operator.add, plte, group(trns, 1)))
         return plte
 
     def asDirect(self):
@@ -1761,7 +1762,7 @@ class Reader:
             plte = self.palette()
             def iterpal(pixels):
                 for row in pixels:
-                    row = map(plte.__getitem__, row)
+                    row = list(map(plte.__getitem__, row))
                     yield array('B', itertools.chain(*row))
             pixels = iterpal(pixels)
         elif self.trns:
@@ -1785,11 +1786,11 @@ class Reader:
                     # 0/maxval (by multiplication), and add it as the extra
                     # channel.
                     row = group(row, planes)
-                    opa = map(it.__ne__, row)
-                    opa = map(maxval.__mul__, opa)
-                    opa = zip(opa) # convert to 1-tuples
+                    opa = list(map(it.__ne__, row))
+                    opa = list(map(maxval.__mul__, opa))
+                    opa = list(zip(opa)) # convert to 1-tuples
                     yield array(typecode,
-                      itertools.chain(*map(operator.add, row, opa)))
+                      itertools.chain(*list(map(operator.add, row, opa))))
             pixels = itertrns(pixels)
         targetbitdepth = None
         if self.sbit:
@@ -1807,7 +1808,7 @@ class Reader:
             meta['bitdepth'] = targetbitdepth
             def itershift(pixels):
                 for row in pixels:
-                    yield map(shift.__rrshift__, row)
+                    yield list(map(shift.__rrshift__, row))
             pixels = itershift(pixels)
         return x,y,pixels,meta
 
@@ -1824,7 +1825,7 @@ class Reader:
         factor = float(maxval)/float(sourcemaxval)
         def iterfloat():
             for row in pixels:
-                yield map(factor.__mul__, row)
+                yield list(map(factor.__mul__, row))
         return x,y,iterfloat(),info
 
     def _as_rescale(self, get, targetbitdepth):
@@ -1837,7 +1838,7 @@ class Reader:
         meta['bitdepth'] = targetbitdepth
         def iterscale():
             for row in pixels:
-                yield map(lambda x: int(round(x*factor)), row)
+                yield [int(round(x*factor)) for x in row]
         return width, height, iterscale(), meta
 
     def asRGB8(self):
@@ -2001,7 +2002,7 @@ except:
         # Expect to get here on Python 2.2
         def array(typecode, init=()):
             if type(init) == str:
-                return map(ord, init)
+                return list(map(ord, init))
             return list(init)
 
 # Further hacks to get it limping along on Python 2.2
@@ -2055,7 +2056,7 @@ except:
 # Run the tests from the command line:
 # python -c 'import png;png.test()'
 
-from StringIO import StringIO
+from io import StringIO
 import tempfile
 # http://www.python.org/doc/2.4.4/lib/module-unittest.html
 import unittest
@@ -2074,7 +2075,7 @@ def topngbytes(name, rows, x, y, **k):
 
     import os
 
-    print name
+    print(name)
     f = StringIO()
     w = Writer(x, y, **k)
     w.write(f, rows)
@@ -2113,13 +2114,13 @@ class Test(unittest.TestCase):
         # tested.  Making it a test for Issue 20.
         w = Writer(15, 17, greyscale=True, bitdepth=n, chunk_limit=99)
         f = StringIO()
-        w.write_array(f, array('B', map(mask.__and__, range(1, 256))))
+        w.write_array(f, array('B', list(map(mask.__and__, list(range(1, 256))))))
         r = Reader(bytes=f.getvalue())
         x,y,pixels,meta = r.read()
         self.assertEqual(x, 15)
         self.assertEqual(y, 17)
         self.assertEqual(list(itertools.chain(*pixels)),
-                         map(mask.__and__, range(1,256)))
+                         list(map(mask.__and__, list(range(1,256)))))
     def testL8(self):
         return self.helperLN(8)
     def testL4(self):
@@ -2128,7 +2129,7 @@ class Test(unittest.TestCase):
         "Also tests asRGB8."
         w = Writer(1, 4, greyscale=True, bitdepth=2)
         f = StringIO()
-        w.write_array(f, array('B', range(4)))
+        w.write_array(f, array('B', list(range(4))))
         r = Reader(bytes=f.getvalue())
         x,y,pixels,meta = r.asRGB8()
         self.assertEqual(x, 1)
@@ -2148,7 +2149,7 @@ class Test(unittest.TestCase):
         x,y,pixels,meta = r.asRGB8()
         self.assertEqual(x, 1)
         self.assertEqual(y, 4)
-        self.assertEqual(list(pixels), map(list, [a, b, b, c]))
+        self.assertEqual(list(pixels), list(map(list, [a, b, b, c])))
     def testPtrns(self):
         "Test colour type 3 and tRNS chunk (and 4-bit palette)."
         a = (50,99,50,50)
@@ -2161,14 +2162,14 @@ class Test(unittest.TestCase):
         w.write_array(f, array('B', (4, 3, 2, 3, 2, 0, 2, 0, 1)))
         r = Reader(bytes=f.getvalue())
         x,y,pixels,meta = r.asRGBA8()
-        self.assertEquals(x, 3)
-        self.assertEquals(y, 3)
+        self.assertEqual(x, 3)
+        self.assertEqual(y, 3)
         c = c+(255,)
         d = d+(255,)
         e = e+(255,)
         boxed = [(e,d,c),(d,c,a),(c,a,b)]
-        flat = map(lambda row: itertools.chain(*row), boxed)
-        self.assertEqual(map(list, pixels), map(list, flat))
+        flat = [itertools.chain(*row) for row in boxed]
+        self.assertEqual(list(map(list, pixels)), list(map(list, flat)))
     def testRGBtoRGBA(self):
         "asRGBA8() on colour type 2 source."""
         # Test for Issue 26
@@ -2198,7 +2199,7 @@ class Test(unittest.TestCase):
             candi = candidate.replace('n', 'i')
             if candi not in _pngsuite:
                 continue
-            print 'adam7 read', candidate
+            print('adam7 read', candidate)
             straight = Reader(bytes=_pngsuite[candidate])
             adam7 = Reader(bytes=_pngsuite[candi])
             # Just compare the pixels.  Ignore x,y (because they're
@@ -2206,7 +2207,7 @@ class Test(unittest.TestCase):
             # "interlace" member differs.  Lame.
             straight = straight.read()[2]
             adam7 = adam7.read()[2]
-            self.assertEqual(map(list, straight), map(list, adam7))
+            self.assertEqual(list(map(list, straight)), list(map(list, adam7)))
     def testAdam7write(self):
         """Adam7 interlace writing.
         For each test image in the PngSuite, write an interlaced
@@ -2215,7 +2216,7 @@ class Test(unittest.TestCase):
         # Not such a great test, because the only way we can check what
         # we have written is to read it back again.
 
-        for name,bytes in _pngsuite.items():
+        for name,bytes in list(_pngsuite.items()):
             # Only certain colour types supported for this test.
             if name[3:5] not in ['n0', 'n2', 'n4', 'n6']:
                 continue
@@ -2235,7 +2236,7 @@ class Test(unittest.TestCase):
               transparent=it.transparent,
               interlace=True)
             x,y,pi,meta = Reader(bytes=pngs).read()
-            self.assertEqual(map(list, ps), map(list, pi))
+            self.assertEqual(list(map(list, ps)), list(map(list, pi)))
     def testPGMin(self):
         """Test that the command line tool can read PGM files."""
         def do():
@@ -2249,7 +2250,7 @@ class Test(unittest.TestCase):
         testWithIO(s, o, do)
         r = Reader(bytes=o.getvalue())
         x,y,pixels,meta = r.read()
-        self.assert_(r.greyscale)
+        self.assertTrue(r.greyscale)
         self.assertEqual(r.bitdepth, 2)
     def testPAMin(self):
         """Test that the command line tool can read PAM file."""
@@ -2267,8 +2268,8 @@ class Test(unittest.TestCase):
         testWithIO(s, o, do)
         r = Reader(bytes=o.getvalue())
         x,y,pixels,meta = r.read()
-        self.assert_(r.alpha)
-        self.assert_(not r.greyscale)
+        self.assertTrue(r.alpha)
+        self.assertTrue(not r.greyscale)
         self.assertEqual(list(itertools.chain(*pixels)), flat)
     def testLA4(self):
         """Create an LA image with bitdepth 4."""
@@ -2299,14 +2300,14 @@ class Test(unittest.TestCase):
         return self.helperLtrns((0,))
     def helperLtrns(self, transparent):
         """Helper used by :meth:`testLtrns*`."""
-        pixels = zip(map(ord, '00384c545c403800'.decode('hex')))
+        pixels = list(zip(list(map(ord, '00384c545c403800'.decode('hex')))))
         o = StringIO()
         w = Writer(8, 8, greyscale=True, bitdepth=1, transparent=transparent)
         w.write_packed(o, pixels)
         r = Reader(bytes=o.getvalue())
         x,y,pixels,meta = r.asDirect()
-        self.assert_(meta['alpha'])
-        self.assert_(meta['greyscale'])
+        self.assertTrue(meta['alpha'])
+        self.assertTrue(meta['greyscale'])
         self.assertEqual(meta['bitdepth'], 1)
     def testWinfo(self):
         """Test the dictionary returned by a `read` method can be used
@@ -2412,10 +2413,10 @@ class Test(unittest.TestCase):
         try:
             import numpy
         except ImportError:
-            print >>sys.stderr, "skipping numpy test"
+            print("skipping numpy test", file=sys.stderr)
             return
 
-        rows = [map(numpy.uint16, range(0,0x10000,0x5555))]
+        rows = [list(map(numpy.uint16, list(range(0,0x10000,0x5555))))]
         b = topngbytes('numpyuint16.png', rows, 4, 1,
             greyscale=True, alpha=False, bitdepth=16)
     def testNumpyuint8(self):
@@ -2424,10 +2425,10 @@ class Test(unittest.TestCase):
         try:
             import numpy
         except ImportError:
-            print >>sys.stderr, "skipping numpy test"
+            print("skipping numpy test", file=sys.stderr)
             return
 
-        rows = [map(numpy.uint8, range(0,0x100,0x55))]
+        rows = [list(map(numpy.uint8, list(range(0,0x100,0x55))))]
         b = topngbytes('numpyuint8.png', rows, 4, 1,
             greyscale=True, alpha=False, bitdepth=8)
     def testNumpybool(self):
@@ -2436,10 +2437,10 @@ class Test(unittest.TestCase):
         try:
             import numpy
         except ImportError:
-            print >>sys.stderr, "skipping numpy test"
+            print("skipping numpy test", file=sys.stderr)
             return
 
-        rows = [map(numpy.bool, [0,1])]
+        rows = [list(map(numpy.bool, [0,1]))]
         b = topngbytes('numpybool.png', rows, 2, 1,
             greyscale=True, alpha=False, bitdepth=1)
 
@@ -3070,7 +3071,7 @@ def test_suite(options, args):
             factor = 255 // (2**meta['bitdepth']-1)
             def rescale(data):
                 for row in data:
-                    yield map(factor.__mul__, row)
+                    yield list(map(factor.__mul__, row))
             pixels = rescale(pixels)
             meta['bitdepth'] = 8
         arraycode = 'BH'[meta['bitdepth']>8]
@@ -3369,7 +3370,7 @@ def _main(argv):
         names = list(_pngsuite)
         names.sort()
         for name in names:
-            print name
+            print(name)
         return
 
     # Run regression tests
@@ -3404,7 +3405,7 @@ def _main(argv):
         # care about TUPLTYPE.
         greyscale = depth <= 2
         pamalpha = depth in (2,4)
-        supported = map(lambda x: 2**x-1, range(1,17))
+        supported = [2**x-1 for x in range(1,17)]
         try:
             mi = supported.index(maxval)
         except ValueError:
@@ -3441,5 +3442,5 @@ def _main(argv):
 if __name__ == '__main__':
     try:
         _main(sys.argv)
-    except Error, e:
-        print >>sys.stderr, e
+    except Error as e:
+        print(e, file=sys.stderr)

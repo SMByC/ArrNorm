@@ -63,7 +63,7 @@ Note that, for ENVI format, ext is the empty string.
     graphics = True        
     for option, value in options:
         if option == '-h':
-            print usage
+            print(usage)
             return 
         elif option == '-n':
             graphics = False
@@ -74,8 +74,8 @@ Note that, for ENVI format, ext is the empty string.
         elif option == '-t':
             ncpThresh = eval(value)    
     if (len(args) != 1) and (len(args) != 2):
-        print 'Incorrect number of arguments'
-        print usage
+        print('Incorrect number of arguments')
+        print(usage)
         sys.exit(1)
     imadfn = args[0]
     if len(args) == 2:
@@ -100,12 +100,12 @@ Note that, for ENVI format, ext is the empty string.
         cols = imadDataset.RasterXSize
         rows = imadDataset.RasterYSize
     except Exception as e:
-        print 'Error: %s  --Image could not be read'%e
+        print('Error: %s  --Image could not be read'%e)
         sys.exit(1)
     referenceDataset = gdal.Open(referencefn,GA_ReadOnly)     
     targetDataset = gdal.Open(targetfn,GA_ReadOnly)           
     if pos is None:
-        pos = range(1,referenceDataset.RasterCount+1)      
+        pos = list(range(1,referenceDataset.RasterCount+1))      
     if dims is None:
         x0 = 0; y0 = 0
     else:
@@ -113,11 +113,11 @@ Note that, for ENVI format, ext is the empty string.
     chisqr = imadDataset.GetRasterBand(imadbands).ReadAsArray(0,0,cols,rows).ravel()
     ncp = 1 - stats.chi2.cdf(chisqr,[imadbands-1])
     idx = where(ncp>ncpThresh)
-    print time.asctime() 
-    print 'reference: '+referencefn
-    print 'target   : '+targetfn   
-    print 'no-change probability threshold: '+str(ncpThresh)
-    print 'no-change pixels: '+str(len(idx[0]))  
+    print(time.asctime()) 
+    print('reference: '+referencefn)
+    print('target   : '+targetfn)   
+    print('no-change probability threshold: '+str(ncpThresh))
+    print('no-change pixels: '+str(len(idx[0])))  
     start = time.time()           
     driver = targetDataset.GetDriver()    
     outDataset = driver.Create(outfn,cols,rows,len(pos),GDT_Float32)
@@ -137,7 +137,7 @@ Note that, for ENVI format, ext is the empty string.
         x = referenceDataset.GetRasterBand(k).ReadAsArray(x0,y0,cols,rows).astype(float).ravel()
         y = targetDataset.GetRasterBand(k).ReadAsArray(x0,y0,cols,rows).astype(float).ravel()
         b,a,R = orthoregress(y[idx],x[idx])
-        print 'band: %i  slope: %f  intercept: %f  correlation: %f'%(k,b,a,R)
+        print('band: %i  slope: %f  intercept: %f  correlation: %f'%(k,b,a,R))
         my = max(y[idx])
         if (j<7) and graphics:
             plt.subplot(2,3,j)
@@ -160,15 +160,15 @@ Note that, for ENVI format, ext is the empty string.
     referenceDataset = None
     targetDataset = None
     outDataset = None
-    print 'result written to: '+outfn 
+    print('result written to: '+outfn) 
     if fsfn is not None:
-        print 'normalizing '+fsfn+'...'
+        print('normalizing '+fsfn+'...')
         fsDataset = gdal.Open(fsfn,GA_ReadOnly)
         try:
             cols = fsDataset.RasterXSize
             rows = fsDataset.RasterYSize    
         except Exception as e:
-            print 'Error %s  -- Image could not be read in' 
+            print('Error %s  -- Image could not be read in') 
             sys.exit(1)   
         driver = fsDataset.GetDriver()
         outDataset = driver.Create(fsoutfn,cols,rows,len(pos),GDT_Float32)
@@ -189,8 +189,8 @@ Note that, for ENVI format, ext is the empty string.
             j += 1     
         outDataset = None   
         fsDataset = None 
-        print 'full result written to: '+fsoutfn   
-    print 'elapsed time: %s'%str(time.time()-start)
+        print('full result written to: '+fsoutfn)   
+    print('elapsed time: %s'%str(time.time()-start))
     
 if __name__ == '__main__':
     main()        

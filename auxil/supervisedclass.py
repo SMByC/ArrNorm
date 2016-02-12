@@ -47,7 +47,7 @@ class Maxlike(MaximumLikelihoodC):
             self.learn(Gs,ls)    
             return True 
         except Exception as e:
-            print 'Error: %s'%e 
+            print('Error: %s'%e) 
             return False    
             
     def classify(self,Gs):
@@ -183,7 +183,7 @@ class Ffnbp(Ffn):
                     epoch += 1
                 itr += 1
         except Exception as e:
-            print 'Error: %s'%e
+            print('Error: %s'%e)
             return None
         return np.array(cost)
     
@@ -282,7 +282,7 @@ class Ffncg(Ffn):
                     d = beta*d - g
             return cost 
         except Exception as e:
-            print 'Error: %s'%e
+            print('Error: %s'%e)
             return None     
 
     
@@ -311,7 +311,7 @@ class Svm(object):
             self._svm.learn(Gs,ls)  
             return True 
         except Exception as e:
-            print 'Error: %s'%e 
+            print('Error: %s'%e) 
             return False    
     
     def classify(self,Gs):
@@ -337,4 +337,4 @@ if __name__ == '__main__':
     cl = Ffnbp(Gs,ls,4)  
     if cl.train() is not None:
         classes, _ = cl.classify(Gs) 
-    print classes
+    print(classes)

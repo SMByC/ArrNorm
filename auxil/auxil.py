@@ -17,11 +17,11 @@
 #    GNU General Public License for more details.
 
 import numpy as np  
-import math, platform, StringIO
+import math, platform, io
 from . import png   
 # comment out for GAE deployment---------
 from numpy.ctypeslib import ndpointer
-import Tkinter,tkFileDialog,tkSimpleDialog,tkMessageBox 
+import tkinter,tkinter.filedialog,tkinter.simpledialog,tkinter.messagebox 
 import ctypes
 from scipy.special import betainc 
 from numpy.fft import fft2, ifft2, fftshift 
@@ -239,7 +239,7 @@ def make_png_rgb(samples,lines,band1,band2,band3):
     RGB = np.reshape(RGB, (3,size)).transpose()
     RGB = np.reshape(RGB,(lines,3*samples)).tolist()
 #  file object              
-    f = StringIO.StringIO() 
+    f = io.StringIO() 
 #  create PNG            
     w = png.Writer(samples,lines)
     w.write(f,RGB)           
@@ -350,9 +350,9 @@ def center(K):
 # --------------
 
 def select_directory(title=None):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()    
-    d = tkFileDialog.askdirectory(title=title)
+    d = tkinter.filedialog.askdirectory(title=title)
     root.destroy()
     if d == '':
         return None
@@ -360,28 +360,28 @@ def select_directory(title=None):
         return d    
     
 def askyesno(question):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw() 
-    answer = tkMessageBox.askyesno('Query', question)     
+    answer = tkinter.messagebox.askyesno('Query', question)     
     root.destroy()
     return answer
 
 def select_infile(filt=None,title=None,mask=None):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
     if filt is None:
         filetypes=[('anyfile','*.*')]
     else:
         filetypes=[('filtered',filt)]
-    filename = tkFileDialog.Open(filetypes=filetypes,title=title).show() 
+    filename = tkinter.filedialog.Open(filetypes=filetypes,title=title).show() 
     root.destroy()
     if filename == '':
         return None
     if mask:
-        root = Tkinter.Tk()
+        root = tkinter.Tk()
         root.withdraw()
         filetypes=[('anyfile','*.*')]
-        maskname = tkFileDialog.Open(filetypes=filetypes,title='associated mask').show() 
+        maskname = tkinter.filedialog.Open(filetypes=filetypes,title='associated mask').show() 
         root.destroy()  
         if maskname:
             return (filename,maskname)
@@ -392,9 +392,9 @@ def select_infile(filt=None,title=None,mask=None):
     
 
 def select_outfilefmt(title=''):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    fmt = tkSimpleDialog.askstring(title+' Output Format', 
+    fmt = tkinter.simpledialog.askstring(title+' Output Format', 
                                    'Enter one of GTiff, PCIDSK, HFA, ENVI',
                                    initialvalue='GTiff')
     if fmt == 'GTiff':
@@ -412,7 +412,7 @@ def select_outfilefmt(title=''):
     else:
         root.destroy()
         return (None,None)      
-    filename = tkFileDialog.SaveAs(filetypes=filetypes,defaultextension=defaultextension,title=title).show() 
+    filename = tkinter.filedialog.SaveAs(filetypes=filetypes,defaultextension=defaultextension,title=title).show() 
     root.destroy()
     if filename:
         return (filename,fmt)
@@ -420,10 +420,10 @@ def select_outfilefmt(title=''):
         return (None,None)
     
 def select_outfile(filt = '*', title=''):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
     filetypes = [('Output',filt)]
-    filename = tkFileDialog.SaveAs(filetypes=filetypes,defaultextension=filt,title=title).show() 
+    filename = tkinter.filedialog.SaveAs(filetypes=filetypes,defaultextension=filt,title=title).show() 
     root.destroy()
     if filename:
         return filename
@@ -431,16 +431,16 @@ def select_outfile(filt = '*', title=''):
         return None    
 
 def select_pos(bands,onlyone=None):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
     if onlyone:
-        pos = tkSimpleDialog.askstring('Pos', 
+        pos = tkinter.simpledialog.askstring('Pos', 
                                        'Single band position, 1 - %i'%bands,
                                         initialvalue='1')
     else:    
-        pos = tkSimpleDialog.askstring('Pos', 
+        pos = tkinter.simpledialog.askstring('Pos', 
                                        'Band positions as list',
-                                        initialvalue = str(range(1,bands+1)))
+                                        initialvalue = str(list(range(1,bands+1))))
     root.destroy() 
     if pos:
         return eval(pos)
@@ -448,9 +448,9 @@ def select_pos(bands,onlyone=None):
         return None
     
 def select_dims(dimensions):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    dims = tkSimpleDialog.askstring('Dims', 
+    dims = tkinter.simpledialog.askstring('Dims', 
                                    'Dimensions as list [x0,y0,cols,rows]',
                                    initialvalue=str(dimensions))
     root.destroy()
@@ -460,9 +460,9 @@ def select_dims(dimensions):
         return None    
     
 def select_penal(lam):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    lam = tkSimpleDialog.askstring('Pen', 
+    lam = tkinter.simpledialog.askstring('Pen', 
                                    'Penalization',
                                    initialvalue=str(lam))
     root.destroy()
@@ -472,9 +472,9 @@ def select_penal(lam):
         return None      
     
 def select_ncp(ncp):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    ncp = tkSimpleDialog.askstring('NCP', 
+    ncp = tkinter.simpledialog.askstring('NCP', 
                                    'Probability threshold',
                                    initialvalue=str(ncp))
     root.destroy()
@@ -484,7 +484,7 @@ def select_ncp(ncp):
         return None    
     
 def select_rgb(bands):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
     if bands == 1:
         iv = '[1,1,1]'
@@ -492,7 +492,7 @@ def select_rgb(bands):
         iv = '[1,1,2]'
     else:
         iv = '[1,2,3]'    
-    rgb = tkSimpleDialog.askstring('RGB', 
+    rgb = tkinter.simpledialog.askstring('RGB', 
                                    'RGB bands as sublist from [1 ... %i]'%bands,
                                    initialvalue=iv)
     root.destroy()
@@ -502,9 +502,9 @@ def select_rgb(bands):
         return None     
        
 def select_enhance(enh):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    enh = tkSimpleDialog.askstring('Enhance', 
+    enh = tkinter.simpledialog.askstring('Enhance', 
                                    '1=linear255, 2=linear, 3=linear2pc, 4=equalization',
                                    initialvalue=enh)
     root.destroy()
@@ -514,9 +514,9 @@ def select_enhance(enh):
         return None             
     
 def select_integer(L,msg='Enter a number'):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    L = tkSimpleDialog.askstring('Enter a number',msg,initialvalue=str(L))
+    L = tkinter.simpledialog.askstring('Enter a number',msg,initialvalue=str(L))
     root.destroy()
     if L:
         return eval(L)
@@ -524,9 +524,9 @@ def select_integer(L,msg='Enter a number'):
         return None 
     
 def select_float(L,msg='Enter a number'):
-    root = Tkinter.Tk()
+    root = tkinter.Tk()
     root.withdraw()
-    L = tkSimpleDialog.askstring('Enter a number',msg,initialvalue=str(L))
+    L = tkinter.simpledialog.askstring('Enter a number',msg,initialvalue=str(L))
     root.destroy()
     if L:
         return float(eval(L))
@@ -782,7 +782,7 @@ class DWTArray(object):
         gf1 = np.zeros((m/2,n/2))
         gg1 = np.zeros((m/2,n/2))
 #      filter columns and downsample        
-        ds = np.asarray(range(m/2))*2+1
+        ds = np.asarray(list(range(m/2)))*2+1
         for i in range(n):
             temp = np.convolve(f0[:,i].ravel(),\
                                        self.H,'same')
@@ -791,7 +791,7 @@ class DWTArray(object):
                                        self.G,'same')
             g1[:,i] = temp[ds]               
 #      filter rows and downsample
-        ds = np.asarray(range(n/2))*2+1
+        ds = np.asarray(list(range(n/2)))*2+1
         for i in range(m/2):
             temp = np.convolve(f1[i,:],self.H,'same')
             ff1[i,:] = temp[ds]

@@ -53,7 +53,7 @@ For ENVI files, ext1 or ext2 is the empty string.
     graphics = True        
     for option, value in options:
         if option == '-h':
-            print usage
+            print(usage)
             return
         elif option == '-n':
             graphics = False
@@ -64,8 +64,8 @@ For ENVI files, ext1 or ext2 is the empty string.
         elif option == '-i':
             niter = eval(value)
     if len(args) != 2:
-        print 'Incorrect number of arguments'
-        print usage
+        print('Incorrect number of arguments')
+        print(usage)
         return                                    
     gdal.AllRegister()
     fn1 = args[0]
@@ -86,13 +86,13 @@ For ENVI files, ext1 or ext2 is the empty string.
         rows2 = inDataset2.RasterYSize    
         bands2 = inDataset2.RasterCount
     except Exception as e:
-        print 'Error: %s  --Images could not be read.'%e
+        print('Error: %s  --Images could not be read.'%e)
         sys.exit(1)     
     if bands != bands2:
         sys.stderr.write("Size mismatch")
         sys.exit(1)                
     if pos is None:
-        pos = range(1,bands+1) 
+        pos = list(range(1,bands+1)) 
     else:
         bands = len(pos) 
     if dims is None:
@@ -107,10 +107,10 @@ For ENVI files, ext1 or ext2 is the empty string.
     else:
         x2 = x0
         y2 = y0    
-    print '------------IRMAD -------------'
-    print time.asctime()     
-    print 'time1: '+fn1
-    print 'time2: '+fn2   
+    print('------------IRMAD -------------')
+    print(time.asctime())     
+    print('time1: '+fn1)
+    print('time2: '+fn2)   
     start = time.time()
 #  iteration of MAD    
     cpm = auxil.Cpm(2*bands)    
@@ -198,7 +198,7 @@ For ENVI files, ext1 or ext2 is the empty string.
         cov = np.diag(A.T*s12*B)    
         B = B*np.diag(cov/np.abs(cov))          
         itr += 1              
-    print 'rho: %s'%str(rho)          
+    print('rho: %s'%str(rho))          
 # write results to disk
     driver = inDataset1.GetDriver()    
     outDataset = driver.Create(outfn,cols,rows,bands+1,GDT_Float32)
@@ -228,9 +228,9 @@ For ENVI files, ext1 or ext2 is the empty string.
     outDataset = None
     inDataset1 = None
     inDataset2 = None  
-    print 'result written to: '+outfn
-    print 'elapsed time: %s'%str(time.time()-start) 
-    x = np.array(range(itr-1))
+    print('result written to: '+outfn)
+    print('elapsed time: %s'%str(time.time()-start)) 
+    x = np.array(list(range(itr-1)))
     if graphics:
         plt.plot(x,rhos[0:itr-1,:])
         plt.title('Canonical correlations')
