@@ -27,15 +27,13 @@ from scipy import stats
 
 from auxil.auxil import orthoregress
 
-
-def main():
-    usage = '''
-Usage: 
+usage = '''
+Usage:
 --------------------------------------------------------
-python %s  [-p "bandPositions"] [-d "spatialDimensions"] 
-[-t no-change prob threshold] imadFile [fullSceneFile]' 
+python %s  [-p "bandPositions"] [-d "spatialDimensions"]
+[-t no-change prob threshold] imadFile [fullSceneFile]'
 --------------------------------------------------------
-bandPositions and spatialDimensions are quoted lists, 
+bandPositions and spatialDimensions are quoted lists,
 e.g., -p [4,5,6] -d [0,0,400,400]
 -n stops graphics output
 
@@ -44,7 +42,7 @@ spectral dimension of fullSceneFile, if present,
 MUST match those of target and reference images
 --------------------------------------------------------
 imadFile is of form path/MAD(filename1-filename2).ext and
-the output file is named 
+the output file is named
 
             path/filename2_norm.ext.
 
@@ -56,39 +54,19 @@ name the normalized full scene, if present:
          fullSceneFile_norm.ext
 
 Note that, for ENVI format, ext is the empty string.
--------------------------------------------------------''' % sys.argv[0]
+-------------------------------------------------------'''
 
-    options, args = getopt.getopt(sys.argv[1:], 'hnp:d:t:')
-    pos = None
-    dims = None
-    ncpThresh = 0.95
-    fsfn = None
-    graphics = True
-    for option, value in options:
-        if option == '-h':
-            print(usage)
-            return
-        elif option == '-n':
-            graphics = False
-        elif option == '-p':
-            pos = eval(value)
-        elif option == '-d':
-            dims = eval(value)
-        elif option == '-t':
-            ncpThresh = eval(value)
-    if (len(args) != 1) and (len(args) != 2):
-        print('Incorrect number of arguments')
-        print(usage)
-        sys.exit(1)
-    imadfn = args[0]
-    if len(args) == 2:
-        fsfn = args[1]
-        path = os.path.dirname(fsfn)
-        basename = os.path.basename(fsfn)
+
+def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None):
+
+    if img_target is not None:
+        path = os.path.dirname(img_target)
+        basename = os.path.basename(img_target)
         root, ext = os.path.splitext(basename)
         fsoutfn = path + '/' + root + '_norm_all' + ext
-    path = os.path.dirname(imadfn)
-    basename = os.path.basename(imadfn)
+
+    path = os.path.dirname(img_imad)
+    basename = os.path.basename(img_imad)
     root, ext = os.path.splitext(basename)
     b = root.find('(')
     e = root.find(')')
@@ -97,7 +75,7 @@ Note that, for ENVI format, ext is the empty string.
     targetfn = path + '/' + targetbasename
     targetroot, targetext = os.path.splitext(targetbasename)
     outfn = path + '/' + targetroot + '_norm' + targetext
-    imadDataset = gdal.Open(imadfn, GA_ReadOnly)
+    imadDataset = gdal.Open(img_imad, GA_ReadOnly)
     try:
         imadbands = imadDataset.RasterCount
         cols = imadDataset.RasterXSize
@@ -165,9 +143,9 @@ Note that, for ENVI format, ext is the empty string.
     targetDataset = None
     outDataset = None
     print('result written to: ' + outfn)
-    if fsfn is not None:
-        print('normalizing ' + fsfn + '...')
-        fsDataset = gdal.Open(fsfn, GA_ReadOnly)
+    if img_target is not None:
+        print('normalizing ' + img_target + '...')
+        fsDataset = gdal.Open(img_target, GA_ReadOnly)
         try:
             cols = fsDataset.RasterXSize
             rows = fsDataset.RasterYSize
@@ -196,6 +174,35 @@ Note that, for ENVI format, ext is the empty string.
         print('full result written to: ' + fsoutfn)
     print('elapsed time: %s' % str(time.time() - start))
 
+    return fsoutfn
+
 
 if __name__ == '__main__':
-    main()
+
+    options, args = getopt.getopt(sys.argv[1:], 'hnp:d:t:')
+    pos = None
+    dims = None
+    ncpThresh = 0.95
+    fsfn = None
+    graphics = True
+    for option, value in options:
+        if option == '-h':
+            print(usage)
+            sys.exit()
+        elif option == '-n':
+            graphics = False
+        elif option == '-p':
+            pos = eval(value)
+        elif option == '-d':
+            dims = eval(value)
+        elif option == '-t':
+            ncpThresh = eval(value)
+    if (len(args) != 1) and (len(args) != 2):
+        print('Incorrect number of arguments')
+        print(usage)
+        sys.exit(1)
+    imadfn = args[0]
+    if len(args) == 2:
+        fsfn = args[1]
+
+    main(imadfn, ncpThresh, pos, dims, fsfn)

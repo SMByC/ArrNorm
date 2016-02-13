@@ -30,15 +30,13 @@ from scipy import linalg, stats
 
 import auxil.auxil as auxil
 
-
-def main():
-    usage = '''
+usage = '''
 Usage:
 -----------------------------------------------------
-python %s [-h] [-n] [-i max iterations] [-p bandPositions] 
+python %s [-h] [-n] [-i max iterations] [-p bandPositions]
 [-d spatialDimensions] filename1 filename2
 -----------------------------------------------------
-bandPositions and spatialDimensions are lists, 
+bandPositions and spatialDimensions are lists,
 e.g., -p [1,2,3] -d [0,0,400,400]
 -n stops any graphics output
 -----------------------------------------------------
@@ -46,44 +44,26 @@ The output MAD variate file is has the same format
 as filename1 and is named
 
       path/MAD(filebasename1-filebasename2).ext1
-      
+
 where filename1 = path/filebasename1.ext1
       filename2 = path/filebasename2.ext2
 
-For ENVI files, ext1 or ext2 is the empty string.       
------------------------------------------------------''' % sys.argv[0]
-    options, args = getopt.getopt(sys.argv[1:], 'hnp:i:d:')
-    pos = None
-    dims = None
-    niter = 50
-    graphics = True
-    for option, value in options:
-        if option == '-h':
-            print(usage)
-            return
-        elif option == '-n':
-            graphics = False
-        elif option == '-p':
-            pos = eval(value)
-        elif option == '-d':
-            dims = eval(value)
-        elif option == '-i':
-            niter = eval(value)
-    if len(args) != 2:
-        print('Incorrect number of arguments')
-        print(usage)
-        return
+For ENVI files, ext1 or ext2 is the empty string.
+-----------------------------------------------------'''
+
+
+def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False):
+
     gdal.AllRegister()
-    fn1 = args[0]
-    fn2 = args[1]
-    path = os.path.dirname(fn1)
-    basename1 = os.path.basename(fn1)
+
+    path = os.path.dirname(img_ref)
+    basename1 = os.path.basename(img_ref)
     root1, ext1 = os.path.splitext(basename1)
-    basename2 = os.path.basename(fn2)
+    basename2 = os.path.basename(img_target)
     root2, ext2 = os.path.splitext(basename2)
     outfn = path + '/' + 'MAD(%s-%s)%s' % (root1, basename2, ext1)
-    inDataset1 = gdal.Open(fn1, GA_ReadOnly)
-    inDataset2 = gdal.Open(fn2, GA_ReadOnly)
+    inDataset1 = gdal.Open(img_ref, GA_ReadOnly)
+    inDataset2 = gdal.Open(img_target, GA_ReadOnly)
     try:
         cols = inDataset1.RasterXSize
         rows = inDataset1.RasterYSize
@@ -115,8 +95,8 @@ For ENVI files, ext1 or ext2 is the empty string.
         y2 = y0
     print('------------IRMAD -------------')
     print(time.asctime())
-    print('time1: ' + fn1)
-    print('time2: ' + fn2)
+    print('time1: ' + img_ref)
+    print('time2: ' + img_target)
     start = time.time()
     #  iteration of MAD
     cpm = auxil.Cpm(2 * bands)
@@ -136,7 +116,8 @@ For ENVI files, ext1 or ext2 is the empty string.
         rasterBands1.append(inDataset1.GetRasterBand(b))
     for b in pos:
         rasterBands2.append(inDataset2.GetRasterBand(b))
-    while (delta > 0.001) and (itr < niter):
+    #while (delta > 0.001) and (itr < niter):
+    while (itr < niter):
         #      spectral tiling for statistics
         for row in range(rows):
             for k in range(bands):
@@ -242,6 +223,32 @@ For ENVI files, ext1 or ext2 is the empty string.
         plt.title('Canonical correlations')
         plt.show()
 
+    return outfn
 
 if __name__ == '__main__':
-    main()
+    options, args = getopt.getopt(sys.argv[1:], 'hnp:i:d:')
+    if len(args) != 2:
+        print('Incorrect number of arguments')
+        print(usage)
+        sys.exit()
+    pos = None
+    dims = None
+    niter = 25
+    graphics = True
+    for option, value in options:
+        if option == '-h':
+            print(usage)
+            sys.exit()
+        elif option == '-n':
+            graphics = False
+        elif option == '-p':
+            pos = eval(value)
+        elif option == '-d':
+            dims = eval(value)
+        elif option == '-i':
+            niter = eval(value)
+
+    fn1 = args[0]
+    fn2 = args[1]
+
+    main(fn1, fn2, niter, pos, dims, graphics)
