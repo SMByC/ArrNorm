@@ -2,6 +2,7 @@ import numpy as n
 import scipy.interpolate
 import scipy.ndimage
 
+
 def congrid(a, newdims, method='linear', centre=False, minusone=False):
     '''Arbitrary resampling of source array to new dimension sizes.
     Currently only supports maintaining the same number of dimensions.
@@ -33,58 +34,58 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
 
     m1 = n.cast[int](minusone)
     ofs = n.cast[int](centre) * 0.5
-    old = n.array( a.shape )
-    ndims = len( a.shape )
-    if len( newdims ) != ndims:
+    old = n.array(a.shape)
+    ndims = len(a.shape)
+    if len(newdims) != ndims:
         print("[congrid] dimensions error. " \
-         "This routine currently only support " \
-         "rebinning to the same number of dimensions.")
+              "This routine currently only support " \
+              "rebinning to the same number of dimensions.")
         return None
-    newdims = n.asarray( newdims, dtype=float )
+    newdims = n.asarray(newdims, dtype=float)
     dimlist = []
 
     if method == 'neighbour':
-        for i in range( ndims ):
+        for i in range(ndims):
             base = n.indices(newdims)[i]
-            dimlist.append( (old[i] - m1) / (newdims[i] - m1) \
-                       * (base + ofs) - ofs )
-        cd = n.array( dimlist ).round().astype(int)
-        newa = a[list( cd )]
+            dimlist.append((old[i] - m1) / (newdims[i] - m1) \
+                           * (base + ofs) - ofs)
+        cd = n.array(dimlist).round().astype(int)
+        newa = a[list(cd)]
         return newa
 
-    elif method in ['nearest','linear']:
+    elif method in ['nearest', 'linear']:
         # calculate new dims
-        for i in range( ndims ):
-            base = n.arange( newdims[i] )
-            dimlist.append( (old[i] - m1) / (newdims[i] - m1) \
-                       * (base + ofs) - ofs )
+        for i in range(ndims):
+            base = n.arange(newdims[i])
+            dimlist.append((old[i] - m1) / (newdims[i] - m1) \
+                           * (base + ofs) - ofs)
         # specify old dims
-        olddims = [n.arange(i, dtype = n.float) for i in list( a.shape )]
+        olddims = [n.arange(i, dtype=n.float) for i in list(a.shape)]
 
         # first interpolation - for ndims = any
-        mint = scipy.interpolate.interp1d( olddims[-1], a, kind=method )
-        newa = mint( dimlist[-1] )
+        mint = scipy.interpolate.interp1d(olddims[-1], a, kind=method)
+        newa = mint(dimlist[-1])
 
-        trorder = [ndims - 1] + list(range( ndims - 1))
-        for i in range( ndims - 2, -1, -1 ):
-            newa = newa.transpose( trorder )
+        trorder = [ndims - 1] + list(range(ndims - 1))
+        for i in range(ndims - 2, -1, -1):
+            newa = newa.transpose(trorder)
 
-            mint = scipy.interpolate.interp1d( olddims[i], newa, kind=method )
-            newa = mint( dimlist[i] )
+            mint = scipy.interpolate.interp1d(olddims[i], newa, kind=method)
+            newa = mint(dimlist[i])
 
         if ndims > 1:
             # need one more transpose to return to original dimensions
-            newa = newa.transpose( trorder )
+            newa = newa.transpose(trorder)
 
         return newa
     elif method in ['spline']:
-        oslices = [ slice(0,j) for j in old ]
+        oslices = [slice(0, j) for j in old]
         oldcoords = n.ogrid[oslices]
-        nslices = [ slice(0,j) for j in list(newdims) ]
+        nslices = [slice(0, j) for j in list(newdims)]
         newcoords = n.mgrid[nslices]
 
         newcoords_dims = list(range(n.rank(newcoords)))
-        #make first index last
+        # make first index last
         newcoords_dims.append(newcoords_dims.pop(0))
         newcoords_tr = newcoords.transpose(newcoords_dims)
         # makes a view that affects newcoords
@@ -100,6 +101,6 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
         return newa
     else:
         print("Congrid error: Unrecognized interpolation type.\n", \
-         "Currently only \'neighbour\', \'nearest\',\'linear\',", \
-         "and \'spline\' are supported.")
+              "Currently only \'neighbour\', \'nearest\',\'linear\',", \
+              "and \'spline\' are supported.")
         return None
