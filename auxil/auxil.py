@@ -18,6 +18,7 @@
 
 import io
 import math
+import os
 import platform
 
 import numpy as np
@@ -31,10 +32,12 @@ from scipy.special import betainc
 from numpy.fft import fft2, ifft2, fftshift
 import scipy.ndimage.interpolation as ndii
 
+script_dir = os.path.dirname(os.path.realpath(__file__))
+
 if platform.system() == 'Windows':
-    lib = ctypes.cdll.LoadLibrary('prov_means.dll')
+    lib = ctypes.cdll.LoadLibrary(os.path.join(script_dir, 'prov_means.dll'))
 elif platform.system() == 'Linux':
-    lib = ctypes.cdll.LoadLibrary('libprov_means.so')
+    lib = ctypes.cdll.LoadLibrary(os.path.join(script_dir, 'libprov_means.so'))
 provmeans = lib.provmeans
 provmeans.restype = None
 c_double_p = ctypes.POINTER(ctypes.c_double)
