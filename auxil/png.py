@@ -162,11 +162,10 @@ And now, my famous members
 --------------------------
 """
 
-# http://www.python.org/doc/2.2.3/whatsnew/node5.html
-
 
 __version__ = "$URL: http://pypng.googlecode.com/svn/trunk/code/png.py $ $Rev: 201 $"
 
+import codecs
 from array import array
 from functools import reduce
 
@@ -2541,7 +2540,7 @@ def _dehex(s):
 
     # Remove all non-hexadecimal digits
     s = re.sub(r'[^a-fA-F\d]', '', s)
-    return s.decode('hex')
+    return codecs.encode(bytes(s, encoding='utf-8'), 'hex')
 
 
 # Copies of PngSuite test files taken
