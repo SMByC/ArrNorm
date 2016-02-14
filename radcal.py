@@ -58,7 +58,7 @@ Note that, for ENVI format, ext is the empty string.
 -------------------------------------------------------'''
 
 
-def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None):
+def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphics=False):
 
     if img_target is not None:
         path = os.path.dirname(img_target)
@@ -173,9 +173,10 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None):
         outDataset = None
         fsDataset = None
         print('full result written to: ' + fsoutfn)
-    print('elapsed time: %s' % str(time.time() - start))
+        return fsoutfn
 
-    return fsoutfn
+    print('elapsed time: %s' % str(time.time() - start))
+    return outfn
 
 
 if __name__ == '__main__':
