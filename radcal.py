@@ -18,6 +18,7 @@
 
 import getopt
 import time
+import os
 
 import matplotlib.pyplot as plt
 from numpy import *
