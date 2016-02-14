@@ -38,7 +38,7 @@ print("\nAutomatic relative radiometric normalization")
 for img_target in arg.images:
 
     print("\niMad process for: ", img_target)
-    img_imad = iMad.main(arg.ref, img_target)
+    img_imad = iMad.main(arg.ref, img_target, niter=arg.i)
 
     print("\nRadcal process for: ", img_target, " with iMad image: ", img_imad)
-    img_norm = radcal.main(img_imad)
+    img_norm = radcal.main(img_imad, ncpThresh=arg.t)
