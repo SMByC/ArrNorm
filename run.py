@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
+import sys
 import argparse
+from subprocess import call
 
 from arrNorm import iMad, radcal
 
@@ -44,17 +47,61 @@ Instituto de Hidrología, Meteorología y Estudios Ambientales
 Sistema de Monitoreo de Bosques y Carbono - SMBYC
 
 ==============================================================
-
 '''
 print(header)
 
 # ==============================================================================
 # PROCESS IMAGES
 
-for img_target in arg.images:
+for img_count, img_target in enumerate(arg.images):
 
-    print("\niMad process for: ", img_target)
+    print("\nPROCESSING IMAGE: {target} ({count})".format(
+        target=os.path.basename(img_target),
+        count=str(img_count+1)+'/'+str(len(arg.images))
+    ))
+
+    # ======================================
+    # iMad process
+
+    print("\n======================================\n"
+          "iMad process for: ", os.path.basename(img_target))
     img_imad = iMad.main(arg.ref, img_target, niter=arg.i)
 
-    print("\nRadcal process for: ", img_target, " with iMad image: ", img_imad)
+    # ======================================
+    # Radcal process
+
+    print("\n======================================\n"
+          "Radcal process for: ", os.path.basename(img_target),
+          " with iMad image: ", os.path.basename(img_imad))
     img_norm = radcal.main(img_imad, ncpThresh=arg.t)
+
+    # ======================================
+    # Make mask
+
+    print('\n======================================\n'
+          'Making mask:')
+    filename, ext = os.path.splitext(os.path.basename(img_target))
+    mask_file = os.path.join(os.path.dirname(os.path.abspath(img_target)),
+                             filename+"_mask"+ext)
+    return_code = call('gdal_calc.py -A '+img_target+' --outfile='+mask_file+' --calc="1*(A>0)" --NoDataValue=0', shell=True)
+    if return_code == 0:  # successfully
+        print('Mask created successfully: ' + os.path.basename(mask_file))
+    else:
+        print('\nError creating mask: ' + str(return_code))
+        sys.exit(1)
+
+    # ======================================
+    # Apply mask to image normalized
+
+    print('\n======================================\n'
+          'Applying mask:')
+    return_code = call('gdal_calc.py -A '+img_norm+' -B '+mask_file+' --outfile='+img_norm+' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
+    if return_code == 0:  # successfully
+        print('Mask applied successfully: ' + os.path.basename(mask_file))
+    else:
+        print('\nError applied mask: ' + str(return_code))
+        sys.exit(1)
+
+    print('\nDONE: arrNorm successfully for:  {img_orig}\n' \
+          '      image normalized saved in: {img_norm}\n'.format(
+        img_orig=os.path.basename(img_target), img_norm=os.path.basename(img_norm)))
