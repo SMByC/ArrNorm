@@ -13,9 +13,9 @@ from arrNorm import iMad, radcal
 
 # Create parser arguments
 arguments = argparse.ArgumentParser(
-    prog="normalize",
-    description="iMad normalize",
-    epilog="SMBYC - Xavier Corredor Llano <xcorredorl@ideam.gov.co>",
+    prog="arrnorm",
+    description="Automatic relative radiometric normalization",
+    epilog="SMBYC-IDEAM - Xavier Corredor Llano <xcorredorl@ideam.gov.co>",
     formatter_class=argparse.RawTextHelpFormatter)
 
 arguments.add_argument('-ref', type=str, required=True,
