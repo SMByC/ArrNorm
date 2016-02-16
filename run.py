@@ -30,7 +30,23 @@ arguments.add_argument('images', type=str, nargs='+',
 
 arg = arguments.parse_args()
 
-print("\nAutomatic relative radiometric normalization")
+header = '''
+==============================================================
+
+arrNorm - Automatic Relative Radiometric Normalization
+
+Code base on: Dr. Mort Canty
+              https://github.com/mortcanty/CRCDocker
+
+Copyright (c) 2016 SMBYC-IDEAM
+Authors: Xavier Corredor Llano <xcorredorl@ideam.gov.co>
+Instituto de Hidrología, Meteorología y Estudios Ambientales
+Sistema de Monitoreo de Bosques y Carbono - SMBYC
+
+==============================================================
+
+'''
+print(header)
 
 # ==============================================================================
 # PROCESS IMAGES
