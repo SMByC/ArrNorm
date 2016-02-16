@@ -24,9 +24,19 @@ arguments.add_argument('-ref', type=str, required=True,
 arguments.add_argument('-i', type=int, default=25,
                        help='number of iterations', required=False)
 
-# set path for save the results
 arguments.add_argument('-t', type=float, default=0.95,
                        help='no-change probability threshold', required=False)
+
+
+def check_mask_option(option):
+    if option in ['yes', 'Yes', 'YES']:
+        return True
+    if option in ['no', 'No', 'NO']:
+        return False
+    raise argparse.ArgumentTypeError('mask option invalid, should be: "yes" or "no"')
+
+arguments.add_argument('-m', type=check_mask_option, default='yes',
+                       help='create and apply nodata mask', required=False)
 
 arguments.add_argument('images', type=str, nargs='+',
                        help='images to apply the iMad normalization')
@@ -78,30 +88,33 @@ for img_count, img_target in enumerate(arg.images):
     # ======================================
     # Make mask
 
-    print('\n======================================\n'
-          'Making mask:')
-    filename, ext = os.path.splitext(os.path.basename(img_target))
-    mask_file = os.path.join(os.path.dirname(os.path.abspath(img_target)),
-                             filename+"_mask"+ext)
-    return_code = call('gdal_calc.py -A '+img_target+' --outfile='+mask_file+' --calc="1*(A>0)" --NoDataValue=0', shell=True)
-    if return_code == 0:  # successfully
-        print('Mask created successfully: ' + os.path.basename(mask_file))
-    else:
-        print('\nError creating mask: ' + str(return_code))
-        sys.exit(1)
+    if arg.m:
+        print('\n======================================\n'
+              'Making mask:')
+        filename, ext = os.path.splitext(os.path.basename(img_target))
+        mask_file = os.path.join(os.path.dirname(os.path.abspath(img_target)),
+                                 filename+"_mask"+ext)
+        return_code = call('gdal_calc.py -A '+img_target+' --outfile='+mask_file+' --calc="1*(A>0)" --NoDataValue=0', shell=True)
+        if return_code == 0:  # successfully
+            print('Mask created successfully: ' + os.path.basename(mask_file))
+        else:
+            print('\nError creating mask: ' + str(return_code))
+            sys.exit(1)
 
     # ======================================
     # Apply mask to image normalized
 
-    print('\n======================================\n'
-          'Applying mask:')
-    return_code = call('gdal_calc.py -A '+img_norm+' -B '+mask_file+' --outfile='+img_norm+' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
-    if return_code == 0:  # successfully
-        print('Mask applied successfully: ' + os.path.basename(mask_file))
-    else:
-        print('\nError applied mask: ' + str(return_code))
-        sys.exit(1)
+    if arg.m:
+        print('\n======================================\n'
+              'Applying mask:')
+        return_code = call('gdal_calc.py -A '+img_norm+' -B '+mask_file+' --outfile='+img_norm+' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
+        if return_code == 0:  # successfully
+            print('Mask applied successfully: ' + os.path.basename(mask_file))
+        else:
+            print('\nError applied mask: ' + str(return_code))
+            sys.exit(1)
 
-    print('\nDONE: arrNorm successfully for:  {img_orig}\n' \
+    print('\nDONE: arrNorm successfully for:  {img_orig}\n'
           '      image normalized saved in: {img_norm}\n'.format(
-        img_orig=os.path.basename(img_target), img_norm=os.path.basename(img_norm)))
+        img_orig=os.path.basename(img_target),
+        img_norm=os.path.basename(img_norm)))
