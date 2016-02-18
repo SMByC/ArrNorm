@@ -116,8 +116,8 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False):
         rasterBands1.append(inDataset1.GetRasterBand(b))
     for b in pos:
         rasterBands2.append(inDataset2.GetRasterBand(b))
-    #while (delta > 0.001) and (itr < niter):
-    while (itr < niter):
+
+    while (delta > 0.0001) and (itr < niter):
         #      spectral tiling for statistics
         for row in range(rows):
             for k in range(bands):
