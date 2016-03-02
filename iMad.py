@@ -117,7 +117,10 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False):
     for b in pos:
         rasterBands2.append(inDataset2.GetRasterBand(b))
 
+    print('Stop condition: max iteration {iter} or delta < 0.0001:'.format(iter=niter))
+
     while (delta > 0.0001) and (itr < niter):
+        print('  iteration: {iter}, delta: {delta}'.format(iter=itr+1, delta=round(delta, 5)))
         #      spectral tiling for statistics
         for row in range(rows):
             for k in range(bands):
