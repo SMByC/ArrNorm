@@ -18,12 +18,11 @@
 
 import getopt
 import time
-import os
 
 import matplotlib.pyplot as plt
 from numpy import *
 from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly, GDT_Float32
+from osgeo.gdalconst import GA_ReadOnly, GDT_Int16
 from scipy import stats
 
 from auxil.auxil import orthoregress
@@ -103,7 +102,7 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
     print('no-change pixels: ' + str(len(idx[0])))
     start = time.time()
     driver = targetDataset.GetDriver()
-    outDataset = driver.Create(outfn, cols, rows, len(pos), GDT_Float32)
+    outDataset = driver.Create(outfn, cols, rows, len(pos), GDT_Int16)
     projection = imadDataset.GetProjection()
     geotransform = imadDataset.GetGeoTransform()
     if geotransform is not None:
@@ -154,7 +153,7 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
             print('Error %s  -- Image could not be read in')
             sys.exit(1)
         driver = fsDataset.GetDriver()
-        outDataset = driver.Create(fsoutfn, cols, rows, len(pos), GDT_Float32)
+        outDataset = driver.Create(fsoutfn, cols, rows, len(pos), GDT_Int16)
         projection = fsDataset.GetProjection()
         geotransform = fsDataset.GetGeoTransform()
         if geotransform is not None:
