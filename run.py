@@ -86,6 +86,18 @@ for img_count, img_target in enumerate(arg.images):
     img_norm = radcal.main(img_imad, ncpThresh=arg.t)
 
     # ======================================
+    # Convert negative values to NoData to image normalized
+
+    print('\n======================================\n'
+          'Converting negative values:')
+    return_code = call('gdal_calc.py -A '+img_norm+' --outfile='+img_norm+' --calc="A*(A>=0)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
+    if return_code == 0:  # successfully
+        print('Negative values converted successfully: ' + os.path.basename(img_norm))
+    else:
+        print('\nError converting values: ' + str(return_code))
+        sys.exit(1)
+
+    # ======================================
     # Make mask
 
     if arg.m:
