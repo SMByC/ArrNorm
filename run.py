@@ -106,7 +106,7 @@ for img_count, img_target in enumerate(arg.images):
         filename, ext = os.path.splitext(os.path.basename(img_target))
         mask_file = os.path.join(os.path.dirname(os.path.abspath(img_target)),
                                  filename+"_mask"+ext)
-        return_code = call('gdal_calc.py -A '+img_target+' --outfile='+mask_file+' --calc="1*(A>0)" --NoDataValue=0', shell=True)
+        return_code = call('gdal_calc.py -A '+img_target+' --type=Byte --outfile='+mask_file+' --calc="1*(A>0)" --NoDataValue=0', shell=True)
         if return_code == 0:  # successfully
             print('Mask created successfully: ' + os.path.basename(mask_file))
         else:
