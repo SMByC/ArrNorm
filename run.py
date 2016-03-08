@@ -119,7 +119,7 @@ for img_count, img_target in enumerate(arg.images):
     if arg.m:
         print('\n======================================\n'
               'Applying mask:')
-        return_code = call('gdal_calc.py -A '+img_norm+' -B '+mask_file+' --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile='+img_norm+' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
+        return_code = call('gdal_calc.py -A '+img_norm+' -B '+mask_file+' --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile='+img_norm+' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
         if return_code == 0:  # successfully
             print('Mask applied successfully: ' + os.path.basename(mask_file))
         else:
