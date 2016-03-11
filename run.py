@@ -59,14 +59,14 @@ def check_mask_option(option):
 arguments.add_argument('-m', type=check_mask_option, default='yes',
                        help='create and apply nodata mask', required=False)
 
-arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
+# arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
+arguments.add_argument('-p', type=int, default=1,
                        help='number of process/threads', required=False)
 
 arguments.add_argument('images', type=str, nargs='+',
                        help='images to apply the iMad normalization')
 
 arg = arguments.parse_args()
-
 
 
 # ==============================================================================
@@ -166,7 +166,6 @@ class Normalization:
                 print('\nError applied mask: ' + str(return_code))
                 sys.exit(1)
 
-
 # ======================================
 # Threading
 
@@ -178,6 +177,7 @@ num_worker_threads = arg.p
 # add items to the queue
 for img_count, img_target in enumerate(arg.images):
     q.put(Normalization(img_count, arg.ref, img_target))
+
 
 def worker():
     while not q.empty():  # check that the queue isn't empty
