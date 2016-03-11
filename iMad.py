@@ -52,7 +52,7 @@ For ENVI files, ext1 or ext2 is the empty string.
 -----------------------------------------------------'''
 
 
-def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False):
+def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref_text=''):
 
     gdal.AllRegister()
 
@@ -120,7 +120,8 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False):
     print('Stop condition: max iteration {iter} or delta < 0.001:'.format(iter=niter))
 
     while (delta > 0.001) and (itr < niter):
-        print('  iteration: {iter}, delta: {delta}'.format(iter=itr+1, delta=round(delta, 5)))
+        print(' {ref_text} iteration: {iter}, delta: {delta}'.format(
+            iter=itr+1, delta=round(delta, 5), ref_text=ref_text))
         #      spectral tiling for statistics
         for row in range(rows):
             for k in range(bands):

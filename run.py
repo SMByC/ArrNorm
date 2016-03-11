@@ -4,9 +4,29 @@
 import os
 import sys
 import argparse
+import multiprocessing
+import queue
+from threading import Thread
 from subprocess import call
 
 from arrNorm import iMad, radcal
+
+header = '''
+==============================================================
+
+arrNorm - Automatic Relative Radiometric Normalization
+
+Code base on: Dr. Mort Canty
+              https://github.com/mortcanty/CRCDocker
+
+Copyright (c) 2016 SMBYC-IDEAM
+Authors: Xavier Corredor Llano <xcorredorl@ideam.gov.co>
+Instituto de Hidrología, Meteorología y Estudios Ambientales
+Sistema de Monitoreo de Bosques y Carbono - SMBYC
+
+==============================================================
+'''
+print(header)
 
 # ==============================================================================
 # PARSER AND CHECK ARGUMENTS
@@ -35,98 +55,142 @@ def check_mask_option(option):
         return False
     raise argparse.ArgumentTypeError('mask option invalid, should be: "yes" or "no"')
 
+
 arguments.add_argument('-m', type=check_mask_option, default='yes',
                        help='create and apply nodata mask', required=False)
+
+arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
+                       help='number of process/threads', required=False)
 
 arguments.add_argument('images', type=str, nargs='+',
                        help='images to apply the iMad normalization')
 
 arg = arguments.parse_args()
 
-header = '''
-==============================================================
 
-arrNorm - Automatic Relative Radiometric Normalization
-
-Code base on: Dr. Mort Canty
-              https://github.com/mortcanty/CRCDocker
-
-Copyright (c) 2016 SMBYC-IDEAM
-Authors: Xavier Corredor Llano <xcorredorl@ideam.gov.co>
-Instituto de Hidrología, Meteorología y Estudios Ambientales
-Sistema de Monitoreo de Bosques y Carbono - SMBYC
-
-==============================================================
-'''
-print(header)
 
 # ==============================================================================
 # PROCESS IMAGES
 
+
+class Normalization:
+    def __init__(self, count, img_ref, img_target):
+        self.count = count
+        self.img_ref = img_ref
+        self.img_target = img_target
+        self.ref_text = "Image ({0}/{1})".format(self.count + 1, len(arg.images))
+
+    def run(self):
+
+        print("\nPROCESSING IMAGE: {target} ({count})".format(
+            target=os.path.basename(self.img_target),
+            count=str(self.count + 1) + '/' + str(len(arg.images))
+        ))
+
+        self.imad()
+        self.radcal()
+        self.no_negative_value()
+        self.make_mask()
+        self.aply_mask()
+
+        print('\nDONE: arrNorm successfully for:  {img_orig}\n'
+              '      image normalized saved in: {img_norm}\n'.format(
+            img_orig=os.path.basename(self.img_target),
+            img_norm=os.path.basename(self.img_norm)))
+
+    def imad(self):
+        # ======================================
+        # iMad process
+
+        print("\n======================================\n"
+              "iMad process for:", self.ref_text, os.path.basename(self.img_target))
+        self.img_imad = iMad.main(self.img_ref, self.img_target,
+                                  ref_text=self.ref_text, niter=arg.i)
+
+    def radcal(self):
+        # ======================================
+        # Radcal process
+
+        print("\n======================================\n"
+              "Radcal process for:", self.ref_text, os.path.basename(self.img_target),
+              " with iMad image: ", os.path.basename(self.img_imad))
+        self.img_norm = radcal.main(self.img_imad, ncpThresh=arg.t)
+
+    def no_negative_value(self):
+        # ======================================
+        # Convert negative values to NoData to image normalized
+
+        print('\n======================================\n'
+              'Converting negative values for:', self.ref_text)
+        return_code = call(
+            'gdal_calc.py -A ' + self.img_norm + ' --outfile=' + self.img_norm + ' --calc="A*(A>=0)" --NoDataValue=0  --allBands=A  --overwrite',
+            shell=True)
+        if return_code == 0:  # successfully
+            print('Negative values converted successfully: ' + os.path.basename(self.img_norm))
+        else:
+            print('\nError converting values: ' + str(return_code))
+            sys.exit(1)
+
+    def make_mask(self):
+        # ======================================
+        # Make mask
+
+        if arg.m:
+            print('\n======================================\n'
+                  'Making mask for:', self.ref_text)
+            filename, ext = os.path.splitext(os.path.basename(self.img_target))
+            self.mask_file = os.path.join(os.path.dirname(os.path.abspath(self.img_target)),
+                                          filename + "_mask" + ext)
+            return_code = call(
+                'gdal_calc.py -A ' + self.img_target + ' --type=Byte --co COMPRESS=PACKBITS --outfile=' + self.mask_file + ' --calc="1*(A>0)" --NoDataValue=0',
+                shell=True)
+            if return_code == 0:  # successfully
+                print('Mask created successfully: ' + os.path.basename(self.mask_file))
+            else:
+                print('\nError creating mask: ' + str(return_code))
+                sys.exit(1)
+
+    def aply_mask(self):
+        # ======================================
+        # Apply mask to image normalized
+
+        if arg.m:
+            print('\n======================================\n'
+                  'Applying mask for:', self.ref_text)
+            return_code = call(
+                'gdal_calc.py -A ' + self.img_norm + ' -B ' + self.mask_file + ' --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile=' + self.img_norm + ' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite',
+                shell=True)
+            if return_code == 0:  # successfully
+                print('Mask applied successfully: ' + os.path.basename(self.mask_file))
+            else:
+                print('\nError applied mask: ' + str(return_code))
+                sys.exit(1)
+
+
+# ======================================
+# Threading
+
+# create the instance
+q = queue.Queue()
+# number of threads
+num_worker_threads = arg.p
+
+# add items to the queue
 for img_count, img_target in enumerate(arg.images):
+    q.put(Normalization(img_count, arg.ref, img_target))
 
-    print("\nPROCESSING IMAGE: {target} ({count})".format(
-        target=os.path.basename(img_target),
-        count=str(img_count+1)+'/'+str(len(arg.images))
-    ))
+def worker():
+    while not q.empty():  # check that the queue isn't empty
+        item = q.get()
+        # process the item
+        item.run()
+        q.task_done()  # specify that you are done with the item
 
-    # ======================================
-    # iMad process
+for i in range(num_worker_threads):
+    t = Thread(target=worker)  # target is the above function
+    t.start()  # start the thread
 
-    print("\n======================================\n"
-          "iMad process for: ", os.path.basename(img_target))
-    img_imad = iMad.main(arg.ref, img_target, niter=arg.i)
+# block until all tasks are done
+q.join()
 
-    # ======================================
-    # Radcal process
-
-    print("\n======================================\n"
-          "Radcal process for: ", os.path.basename(img_target),
-          " with iMad image: ", os.path.basename(img_imad))
-    img_norm = radcal.main(img_imad, ncpThresh=arg.t)
-
-    # ======================================
-    # Convert negative values to NoData to image normalized
-
-    print('\n======================================\n'
-          'Converting negative values:')
-    return_code = call('gdal_calc.py -A '+img_norm+' --outfile='+img_norm+' --calc="A*(A>=0)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
-    if return_code == 0:  # successfully
-        print('Negative values converted successfully: ' + os.path.basename(img_norm))
-    else:
-        print('\nError converting values: ' + str(return_code))
-        sys.exit(1)
-
-    # ======================================
-    # Make mask
-
-    if arg.m:
-        print('\n======================================\n'
-              'Making mask:')
-        filename, ext = os.path.splitext(os.path.basename(img_target))
-        mask_file = os.path.join(os.path.dirname(os.path.abspath(img_target)),
-                                 filename+"_mask"+ext)
-        return_code = call('gdal_calc.py -A '+img_target+' --type=Byte --co COMPRESS=PACKBITS --outfile='+mask_file+' --calc="1*(A>0)" --NoDataValue=0', shell=True)
-        if return_code == 0:  # successfully
-            print('Mask created successfully: ' + os.path.basename(mask_file))
-        else:
-            print('\nError creating mask: ' + str(return_code))
-            sys.exit(1)
-
-    # ======================================
-    # Apply mask to image normalized
-
-    if arg.m:
-        print('\n======================================\n'
-              'Applying mask:')
-        return_code = call('gdal_calc.py -A '+img_norm+' -B '+mask_file+' --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile='+img_norm+' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite', shell=True)
-        if return_code == 0:  # successfully
-            print('Mask applied successfully: ' + os.path.basename(mask_file))
-        else:
-            print('\nError applied mask: ' + str(return_code))
-            sys.exit(1)
-
-    print('\nDONE: arrNorm successfully for:  {img_orig}\n'
-          '      image normalized saved in: {img_norm}\n'.format(
-        img_orig=os.path.basename(img_target),
-        img_norm=os.path.basename(img_norm)))
+print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))
