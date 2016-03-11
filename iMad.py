@@ -121,7 +121,7 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
 
     while (delta > 0.001) and (itr < niter):
         print(' {ref_text} iteration: {iter}, delta: {delta}'.format(
-            iter=itr+1, delta=round(delta, 5), ref_text=ref_text))
+            iter=itr+1, delta=round(delta, 5), ref_text=ref_text+" ->"))
         #      spectral tiling for statistics
         for row in range(rows):
             for k in range(bands):
