@@ -93,8 +93,10 @@ class Normalization:
         self.make_mask()
         self.aply_mask()
 
-        print('\nDONE: arrNorm successfully for:  {img_orig}\n'
+        print('\nDONE: {ref_text} PROCESSED\n'
+              '      arrNorm successfully for:  {img_orig}\n'
               '      image normalized saved in: {img_norm}\n'.format(
+            ref_text=self.ref_text,
             img_orig=os.path.basename(self.img_target),
             img_norm=os.path.basename(self.img_norm)))
 
@@ -167,30 +169,32 @@ class Normalization:
                 sys.exit(1)
 
 # ======================================
-# Threading
+# Multiprocessing
 
+multiprocessing.freeze_support()
 # create the instance
 q = queue.Queue()
 # number of threads
-num_worker_threads = arg.p
-
-# add items to the queue
-for img_count, img_target in enumerate(arg.images):
-    q.put(Normalization(img_count, arg.ref, img_target))
+number_of_processes = arg.p
 
 
-def worker():
-    while not q.empty():  # check that the queue isn't empty
-        item = q.get()
-        # process the item
-        item.run()
-        q.task_done()  # specify that you are done with the item
+def process(norm_class, args):
+    norm_instance = norm_class(*args)
+    norm_instance.run()
 
-for i in range(num_worker_threads):
-    t = Thread(target=worker)  # target is the above function
-    t.start()  # start the thread
 
-# block until all tasks are done
-q.join()
+def meta_process(args):
+    process(*args)
+
+print('Creating {num_proc} multiprocesses\n'.format(num_proc=number_of_processes))
+
+with multiprocessing.Pool(number_of_processes) as pool:
+
+    TASKS = [(Normalization, (img_count, arg.ref, img_target)) for img_count, img_target in enumerate(arg.images)]
+
+    imap_it = pool.imap(meta_process, TASKS)
+
+    for x in imap_it:
+        x
 
 print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))
