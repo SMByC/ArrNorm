@@ -24,7 +24,7 @@ import time
 import numpy as np
 import scipy.ndimage.interpolation as ndii
 from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly, GDT_Float32
+from osgeo.gdalconst import GA_ReadOnly, GDT_Float32, GDT_Int16
 
 from auxil.auxil import similarity
 
@@ -97,7 +97,7 @@ def main(img_ref, img_target, warpband=1, dims=None):
     scale, angle, shift = similarity(refband, warpband)
 
     driver = inDataset2.GetDriver()
-    outDataset = driver.Create(outfn, cols1, rows1, bands2, GDT_Float32)
+    outDataset = driver.Create(outfn, cols1, rows1, bands2, GDT_Int16)
     projection = inDataset1.GetProjection()
     geotransform = inDataset1.GetGeoTransform()
     if geotransform is not None:

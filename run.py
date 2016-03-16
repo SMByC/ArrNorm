@@ -90,10 +90,11 @@ class Normalization:
 
         if arg.reg:
             self.register()
+            self.no_negative_value(self.img_target_reg)
 
         self.imad()
         self.radcal()
-        self.no_negative_value()
+        self.no_negative_value(self.img_norm)
 
         if arg.m:
             self.make_mask()
@@ -137,17 +138,17 @@ class Normalization:
               " with iMad image: ", os.path.basename(self.img_imad))
         self.img_norm = radcal.main(self.img_imad, ncpThresh=arg.t)
 
-    def no_negative_value(self):
+    def no_negative_value(self, image):
         # ======================================
         # Convert negative values to NoData to image normalized
 
         print('\n======================================\n'
               'Converting negative values for:', self.ref_text)
         return_code = call(
-            'gdal_calc.py -A ' + self.img_norm + ' --outfile=' + self.img_norm + ' --calc="A*(A>=0)" --NoDataValue=0  --allBands=A  --overwrite',
+            'gdal_calc.py -A ' + image + ' --outfile=' + image + ' --type=UInt16 --calc="A*(A>=0)" --NoDataValue=0  --allBands=A  --overwrite',
             shell=True)
         if return_code == 0:  # successfully
-            print('Negative values converted successfully: ' + os.path.basename(self.img_norm))
+            print('Negative values converted successfully: ' + os.path.basename(image))
         else:
             print('\nError converting values: ' + str(return_code))
             sys.exit(1)
