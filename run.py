@@ -143,7 +143,7 @@ class Normalization:
         # Convert negative values to NoData to image normalized
 
         print('\n======================================\n'
-              'Converting negative values for:', self.ref_text)
+              'Converting negative values for:', self.ref_text, os.path.basename(image))
         return_code = call(
             'gdal_calc.py -A ' + image + ' --outfile=' + image + ' --type=UInt16 --calc="A*(A>=0)" --NoDataValue=0  --allBands=A  --overwrite',
             shell=True)
@@ -158,7 +158,7 @@ class Normalization:
         # Make mask
 
         print('\n======================================\n'
-              'Making mask for:', self.ref_text)
+              'Making mask for:', self.ref_text, os.path.basename(self.img_target))
         filename, ext = os.path.splitext(os.path.basename(self.img_target))
         self.mask_file = os.path.join(os.path.dirname(os.path.abspath(self.img_target)),
                                       filename + "_mask" + ext)
@@ -176,7 +176,7 @@ class Normalization:
         # Apply mask to image normalized
 
         print('\n======================================\n'
-              'Applying mask for:', self.ref_text)
+              'Applying mask for:', self.ref_text, os.path.basename(self.img_norm))
         return_code = call(
             'gdal_calc.py -A ' + self.img_norm + ' -B ' + self.mask_file + ' --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile=' + self.img_norm + ' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite',
             shell=True)
