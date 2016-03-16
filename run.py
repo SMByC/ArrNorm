@@ -97,7 +97,7 @@ class Normalization:
 
         if arg.m:
             self.make_mask()
-            self.aply_mask()
+            self.apply_mask()
 
         print('\nDONE: {ref_text} PROCESSED\n'
               '      arrNorm successfully for:  {img_orig}\n'
@@ -170,7 +170,7 @@ class Normalization:
             print('\nError creating mask: ' + str(return_code))
             sys.exit(1)
 
-    def aply_mask(self):
+    def apply_mask(self):
         # ======================================
         # Apply mask to image normalized
 
