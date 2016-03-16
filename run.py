@@ -9,7 +9,7 @@ import queue
 from threading import Thread
 from subprocess import call
 
-from arrNorm import iMad, radcal
+from arrNorm import iMad, radcal, register
 
 header = '''
 ==============================================================
@@ -47,6 +47,8 @@ arguments.add_argument('-i', type=int, default=25,
 arguments.add_argument('-t', type=float, default=0.95,
                        help='no-change probability threshold', required=False)
 
+arguments.add_argument('-reg', action='store_true', default=False,
+                       help='registration image-image in frequency domain', required=False)
 
 def check_mask_option(option):
     if option in ['yes', 'Yes', 'YES']:
@@ -54,7 +56,6 @@ def check_mask_option(option):
     if option in ['no', 'No', 'NO']:
         return False
     raise argparse.ArgumentTypeError('mask option invalid, should be: "yes" or "no"')
-
 
 arguments.add_argument('-m', type=check_mask_option, default='yes',
                        help='create and apply nodata mask', required=False)
@@ -87,6 +88,8 @@ class Normalization:
             count=str(self.count + 1) + '/' + str(len(arg.images))
         ))
 
+        if arg.reg:
+            self.register()
         self.imad()
         self.radcal()
         self.no_negative_value()
@@ -100,13 +103,26 @@ class Normalization:
             img_orig=os.path.basename(self.img_target),
             img_norm=os.path.basename(self.img_norm)))
 
+    def register(self):
+        # ======================================
+        # registration image-image in frequency domain
+
+        print("\n======================================\n"
+              "Registration image-image in frequency domain:", self.ref_text, os.path.basename(self.img_target))
+        self.img_target_reg = register.main(self.img_ref, self.img_target)
+
     def imad(self):
         # ======================================
         # iMad process
 
+        if arg.reg:
+            img_target = self.img_target_reg
+        else:
+            img_target = self.img_target
+
         print("\n======================================\n"
               "iMad process for:", self.ref_text, os.path.basename(self.img_target))
-        self.img_imad = iMad.main(self.img_ref, self.img_target,
+        self.img_imad = iMad.main(self.img_ref, img_target,
                                   ref_text=self.ref_text, niter=arg.i)
 
     def radcal(self):
