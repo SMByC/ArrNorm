@@ -90,11 +90,14 @@ class Normalization:
 
         if arg.reg:
             self.register()
+
         self.imad()
         self.radcal()
         self.no_negative_value()
-        self.make_mask()
-        self.aply_mask()
+
+        if arg.m:
+            self.make_mask()
+            self.aply_mask()
 
         print('\nDONE: {ref_text} PROCESSED\n'
               '      arrNorm successfully for:  {img_orig}\n'
@@ -153,36 +156,34 @@ class Normalization:
         # ======================================
         # Make mask
 
-        if arg.m:
-            print('\n======================================\n'
-                  'Making mask for:', self.ref_text)
-            filename, ext = os.path.splitext(os.path.basename(self.img_target))
-            self.mask_file = os.path.join(os.path.dirname(os.path.abspath(self.img_target)),
-                                          filename + "_mask" + ext)
-            return_code = call(
-                'gdal_calc.py -A ' + self.img_target + ' --type=Byte --co COMPRESS=PACKBITS --outfile=' + self.mask_file + ' --calc="1*(A>0)" --NoDataValue=0',
-                shell=True)
-            if return_code == 0:  # successfully
-                print('Mask created successfully: ' + os.path.basename(self.mask_file))
-            else:
-                print('\nError creating mask: ' + str(return_code))
-                sys.exit(1)
+        print('\n======================================\n'
+              'Making mask for:', self.ref_text)
+        filename, ext = os.path.splitext(os.path.basename(self.img_target))
+        self.mask_file = os.path.join(os.path.dirname(os.path.abspath(self.img_target)),
+                                      filename + "_mask" + ext)
+        return_code = call(
+            'gdal_calc.py -A ' + self.img_target + ' --type=Byte --co COMPRESS=PACKBITS --outfile=' + self.mask_file + ' --calc="1*(A>0)" --NoDataValue=0',
+            shell=True)
+        if return_code == 0:  # successfully
+            print('Mask created successfully: ' + os.path.basename(self.mask_file))
+        else:
+            print('\nError creating mask: ' + str(return_code))
+            sys.exit(1)
 
     def aply_mask(self):
         # ======================================
         # Apply mask to image normalized
 
-        if arg.m:
-            print('\n======================================\n'
-                  'Applying mask for:', self.ref_text)
-            return_code = call(
-                'gdal_calc.py -A ' + self.img_norm + ' -B ' + self.mask_file + ' --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile=' + self.img_norm + ' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite',
-                shell=True)
-            if return_code == 0:  # successfully
-                print('Mask applied successfully: ' + os.path.basename(self.mask_file))
-            else:
-                print('\nError applied mask: ' + str(return_code))
-                sys.exit(1)
+        print('\n======================================\n'
+              'Applying mask for:', self.ref_text)
+        return_code = call(
+            'gdal_calc.py -A ' + self.img_norm + ' -B ' + self.mask_file + ' --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 TILED=YES --outfile=' + self.img_norm + ' --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite',
+            shell=True)
+        if return_code == 0:  # successfully
+            print('Mask applied successfully: ' + os.path.basename(self.mask_file))
+        else:
+            print('\nError applied mask: ' + str(return_code))
+            sys.exit(1)
 
 # ======================================
 # Multiprocessing
