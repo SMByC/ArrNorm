@@ -100,6 +100,8 @@ class Normalization:
             self.make_mask()
             self.apply_mask()
 
+        self.clean()
+
         print('\nDONE: {ref_text} PROCESSED\n'
               '      arrNorm successfully for:  {img_orig}\n'
               '      image normalized saved in: {img_norm}\n'.format(
@@ -185,6 +187,11 @@ class Normalization:
         else:
             print('\nError applied mask: ' + str(return_code))
             sys.exit(1)
+
+    def clean(self):
+        # delete the MAD file
+        os.remove(self.img_imad)
+
 
 # ======================================
 # Multiprocessing
