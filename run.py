@@ -159,13 +159,18 @@ class Normalization:
         # ======================================
         # Make mask
 
+        if arg.reg:
+            img_to_process = self.img_target_reg
+        else:
+            img_to_process = self.img_target
+
         print('\n======================================\n'
-              'Making mask for:', self.ref_text, os.path.basename(self.img_target))
-        filename, ext = os.path.splitext(os.path.basename(self.img_target))
-        self.mask_file = os.path.join(os.path.dirname(os.path.abspath(self.img_target)),
-                                      filename + "_mask" + ext)
+              'Making mask for:', self.ref_text, os.path.basename(img_to_process))
+
+        filename, ext = os.path.splitext(os.path.basename(img_to_process))
+        self.mask_file = os.path.join(os.path.dirname(os.path.abspath(img_to_process)), filename + "_mask" + ext)
         return_code = call(
-            'gdal_calc.py -A ' + self.img_target + ' --type=Byte --co COMPRESS=PACKBITS --outfile=' + self.mask_file + ' --calc="1*(A>0)" --NoDataValue=0',
+            'gdal_calc.py -A ' + img_to_process + ' --type=Byte --co COMPRESS=PACKBITS --outfile=' + self.mask_file + ' --calc="1*(A>0)" --NoDataValue=0',
             shell=True)
         if return_code == 0:  # successfully
             print('Mask created successfully: ' + os.path.basename(self.mask_file))
