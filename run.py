@@ -6,7 +6,6 @@ import sys
 import argparse
 import multiprocessing
 import queue
-from threading import Thread
 from subprocess import call
 
 from arrNorm import iMad, radcal, register

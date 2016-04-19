@@ -24,7 +24,7 @@ import time
 import numpy as np
 import scipy.ndimage.interpolation as ndii
 from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly, GDT_Float32, GDT_Int16
+from osgeo.gdalconst import GA_ReadOnly, GDT_Int16
 
 from auxil.auxil import similarity
 
