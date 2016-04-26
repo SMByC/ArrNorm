@@ -163,6 +163,10 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
     if return_code == 0:  # successfully
         print('mosaic created successfully')
 
+    # delete the temporal chunk files
+    for chunk_file in blocks_files:
+        os.remove(chunk_file)
+
     del inDataset1
     del inDataset2
     print('Warped image written to: %s' % outfn)
