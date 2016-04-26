@@ -23,6 +23,7 @@ import time
 
 import numpy as np
 import scipy.ndimage.interpolation as ndii
+from subprocess import call
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly, GDT_Int16
 
@@ -55,7 +56,20 @@ dimensions of the reference image.
 ------------------------------------------------'''
 
 
-def main(img_ref, img_target, warpband=1, dims=None):
+def chunks(l, n):
+    """Split a list into evenly sized chunks
+
+    :param l: list to chunk
+    :type l: list
+    :param n: n sizes to chunk
+    :type n: int
+    :rtype: list
+    """
+    n = max(1, n)
+    return [l[i:i + n] for i in range(0, len(l), n)]
+
+
+def main(img_ref, img_target, warpband=2, chunks_size=800):
 
     gdal.AllRegister()
 
@@ -71,8 +85,13 @@ def main(img_ref, img_target, warpband=1, dims=None):
     basename2 = os.path.basename(img_target)
     root2, ext2 = os.path.splitext(basename2)
     outfn = os.path.join(path, root2 + '_warp' + ext2)
+    # reference
     inDataset1 = gdal.Open(img_ref, GA_ReadOnly)
+    band_ref = inDataset1.GetRasterBand(warpband)
+    # target
     inDataset2 = gdal.Open(img_target, GA_ReadOnly)
+    band_targ = inDataset2.GetRasterBand(warpband)
+
     try:
         cols1 = inDataset1.RasterXSize
         rows1 = inDataset1.RasterYSize
@@ -82,46 +101,66 @@ def main(img_ref, img_target, warpband=1, dims=None):
     except Exception as e:
         print('Error %s  --Image could not be read in' % e)
         sys.exit(1)
-    if dims is None:
-        x0 = 0
-        y0 = 0
-    else:
-        x0, y0, cols1, rows1 = dims
 
-    band = inDataset1.GetRasterBand(warpband)
-    refband = band.ReadAsArray(x0, y0, cols1, rows1).astype(np.float32)
-    band = inDataset2.GetRasterBand(warpband)
-    warpband = band.ReadAsArray(x0, y0, cols1, rows1).astype(np.float32)
+    # adjusted the chunks size
+    x_chunks_size = int(np.ceil(cols2 / round(cols2 / chunks_size)))
+    y_chunks_size = int(np.ceil(rows2 / round(rows2 / chunks_size)))
 
-    #  similarity transform parameters for reference band number
-    scale, angle, shift = similarity(refband, warpband)
+    x_chunks = chunks(list(range(cols2)), x_chunks_size)  # divide x in blocks with size 250
+    y_chunks = chunks(list(range(rows2)), y_chunks_size)  # divide y in blocks with size 250
 
-    driver = inDataset2.GetDriver()
-    outDataset = driver.Create(outfn, cols1, rows1, bands2, GDT_Int16)
-    projection = inDataset1.GetProjection()
-    geotransform = inDataset1.GetGeoTransform()
-    if geotransform is not None:
-        gt = list(geotransform)
-        gt[0] = gt[0] + x0 * gt[1]
-        gt[3] = gt[3] + y0 * gt[5]
-        outDataset.SetGeoTransform(tuple(gt))
-    if projection is not None:
-        outDataset.SetProjection(projection)
+    blocks_files = []
+    for y_idx_block in range(len(y_chunks)):
+        for x_idx_block in range(len(x_chunks)):
+            x0 = x_chunks[x_idx_block][0]
+            y0 = y_chunks[y_idx_block][0]
 
-        #  warp
-    for k in range(bands2):
-        inband = inDataset2.GetRasterBand(k + 1)
-        outBand = outDataset.GetRasterBand(k + 1)
-        bn1 = inband.ReadAsArray(0, 0, cols2, rows2).astype(np.float32)
-        bn2 = ndii.zoom(bn1, 1.0 / scale)
-        bn2 = ndii.rotate(bn2, angle)
-        bn2 = ndii.shift(bn2, shift)
-        outBand.WriteArray(bn2[y0:y0 + rows1, x0:x0 + cols1])
-        outBand.FlushCache()
+            cols1 = len(x_chunks[x_idx_block])
+            rows1 = len(y_chunks[y_idx_block])
+
+            block_filename = os.path.join(path, root2 + '_warp_block_x' + str(x_idx_block)
+                                          +'y' + str(y_idx_block) + ext2)
+
+            ## make register in block
+            refband = band_ref.ReadAsArray(x0, y0, cols1, rows1).astype(np.float32)
+            warpband = band_targ.ReadAsArray(x0, y0, cols1, rows1).astype(np.float32)
+
+            #  similarity transform parameters for reference band number
+            scale, angle, shift = similarity(refband, warpband)
+
+            driver = inDataset2.GetDriver()
+            outDataset = driver.Create(block_filename, cols1, rows1, bands2, GDT_Int16)
+            projection = inDataset1.GetProjection()
+            geotransform = inDataset1.GetGeoTransform()
+            if geotransform is not None:
+                gt = list(geotransform)
+                gt[0] = gt[0] + x0 * gt[1]
+                gt[3] = gt[3] + y0 * gt[5]
+                outDataset.SetGeoTransform(tuple(gt))
+            if projection is not None:
+                outDataset.SetProjection(projection)
+
+            #  warp
+            for k in range(bands2):
+                inband = inDataset2.GetRasterBand(k + 1)
+                outBand = outDataset.GetRasterBand(k + 1)
+                bn1 = inband.ReadAsArray(0, 0, cols2, rows2).astype(np.float32)
+                #bn2 = ndii.zoom(bn1, 1.0 / scale)  # TODO
+                #bn2 = ndii.rotate(bn2, angle)  # TODO
+                bn2 = ndii.shift(bn1, shift)
+                outBand.WriteArray(bn2[y0:y0 + rows1, x0:x0 + cols1])
+                outBand.FlushCache()
+
+            blocks_files.append(block_filename)
+            del outDataset
+
+    return_code = call(["gdalwarp"] + blocks_files + [outfn])  # [outfn, '-srcnodata', '0', '-dstnodata', '255']
+
+    if return_code == 0:  # successfully
+        print('mosaic created successfully')
 
     del inDataset1
     del inDataset2
-    del outDataset
     print('Warped image written to: %s' % outfn)
     print('elapsed time: %s' % str(time.time() - start))
 

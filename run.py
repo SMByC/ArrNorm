@@ -49,6 +49,15 @@ arguments.add_argument('-t', type=float, default=0.95,
 arguments.add_argument('-reg', action='store_true', default=False,
                        help='registration image-image in frequency domain', required=False)
 
+arguments.add_argument('-warpband', type=int, default=2,
+                       help='number of target band for make registration, requires "-reg"', required=False)
+
+arguments.add_argument('-chunksize', type=int, default=None,
+                       help='chunk size for make registration by chunks, requires "-reg"', required=False)
+
+arguments.add_argument('-onlyreg', action='store_true', default=False,
+                       help='only makes registration process and not iMad normalize, requires "-reg"', required=False)
+
 def check_mask_option(option):
     if option in ['yes', 'Yes', 'YES']:
         return True
@@ -91,6 +100,13 @@ class Normalization:
             self.register()
             self.no_negative_value(self.img_target_reg)
 
+            if arg.onlyreg:
+                print('\nDONE: {ref_text} PROCESSED\n'
+                      '      register successfully for:  {img_orig}\n'.format(
+                        ref_text=self.ref_text,
+                        img_orig=os.path.basename(self.img_target)))
+                return
+
         self.imad()
         self.radcal()
         self.no_negative_value(self.img_norm)
@@ -114,7 +130,7 @@ class Normalization:
 
         print("\n======================================\n"
               "Registration image-image in frequency domain:", self.ref_text, os.path.basename(self.img_target))
-        self.img_target_reg = register.main(self.img_ref, self.img_target)
+        self.img_target_reg = register.main(self.img_ref, self.img_target, arg.warpband, arg.chunksize)
 
     def imad(self):
         # ======================================
