@@ -98,7 +98,7 @@ class Normalization:
 
         if arg.reg:
             self.register()
-            self.no_negative_value(self.img_target_reg)
+            #self.no_negative_value(self.img_target_reg)
 
             if arg.onlyreg:
                 print('\nDONE: {ref_text} PROCESSED\n'
