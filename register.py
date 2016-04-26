@@ -69,7 +69,7 @@ def chunks(l, n):
     return [l[i:i + n] for i in range(0, len(l), n)]
 
 
-def main(img_ref, img_target, warpband=2, chunks_size=800):
+def main(img_ref, img_target, warpband=2, chunksize=None):
 
     gdal.AllRegister()
 
@@ -102,12 +102,16 @@ def main(img_ref, img_target, warpband=2, chunks_size=800):
         print('Error %s  --Image could not be read in' % e)
         sys.exit(1)
 
-    # adjusted the chunks size
-    x_chunks_size = int(np.ceil(cols2 / round(cols2 / chunks_size)))
-    y_chunks_size = int(np.ceil(rows2 / round(rows2 / chunks_size)))
+    if chunksize is not None:
+        # adjusted the chunks size
+        x_chunk_size = int(np.ceil(cols2 / round(cols2 / chunksize)))
+        y_chunk_size = int(np.ceil(rows2 / round(rows2 / chunksize)))
+    else:
+        x_chunk_size = cols1
+        y_chunk_size = rows1
 
-    x_chunks = chunks(list(range(cols2)), x_chunks_size)  # divide x in blocks with size 250
-    y_chunks = chunks(list(range(rows2)), y_chunks_size)  # divide y in blocks with size 250
+    x_chunks = chunks(list(range(cols2)), x_chunk_size)  # divide x in blocks with size 250
+    y_chunks = chunks(list(range(rows2)), y_chunk_size)  # divide y in blocks with size 250
 
     blocks_files = []
     for y_idx_block in range(len(y_chunks)):
