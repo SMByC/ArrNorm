@@ -46,6 +46,20 @@ arguments.add_argument('-i', type=int, default=25,
 arguments.add_argument('-t', type=float, default=0.95,
                        help='no-change probability threshold', required=False)
 
+def check_mask_option(option):
+    if option in ['yes', 'Yes', 'YES']:
+        return True
+    if option in ['no', 'No', 'NO']:
+        return False
+    raise argparse.ArgumentTypeError('mask option invalid, should be: "yes" or "no"')
+
+arguments.add_argument('-m', type=check_mask_option, default='yes',
+                       help='create and apply nodata mask, (yes or no)', required=False)
+
+# arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
+arguments.add_argument('-p', type=int, default=1,
+                       help='number of process/threads', required=False)
+
 arguments.add_argument('-reg', action='store_true', default=False,
                        help='registration image-image in frequency domain', required=False)
 
@@ -57,20 +71,6 @@ arguments.add_argument('-chunksize', type=int, default=None,
 
 arguments.add_argument('-onlyreg', action='store_true', default=False,
                        help='only makes registration process and not iMad normalize, requires "-reg"', required=False)
-
-def check_mask_option(option):
-    if option in ['yes', 'Yes', 'YES']:
-        return True
-    if option in ['no', 'No', 'NO']:
-        return False
-    raise argparse.ArgumentTypeError('mask option invalid, should be: "yes" or "no"')
-
-arguments.add_argument('-m', type=check_mask_option, default='yes',
-                       help='create and apply nodata mask', required=False)
-
-# arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
-arguments.add_argument('-p', type=int, default=1,
-                       help='number of process/threads', required=False)
 
 arguments.add_argument('images', type=str, nargs='+',
                        help='images to apply the iMad normalization')
