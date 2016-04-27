@@ -15,13 +15,13 @@ header = '''
 
 arrNorm - Automatic Relative Radiometric Normalization
 
-Code base on: Dr. Mort Canty
-              https://github.com/mortcanty/CRCDocker
+Some code base on: Dr. Mort Canty
+                   https://github.com/mortcanty/CRCDocker
 
 Copyright (c) 2016 SMBYC-IDEAM
 Authors: Xavier Corredor Llano <xcorredorl@ideam.gov.co>
-Instituto de Hidrología, Meteorología y Estudios Ambientales
 Sistema de Monitoreo de Bosques y Carbono - SMBYC
+IDEAM, Colombia
 
 ==============================================================
 '''
@@ -34,7 +34,9 @@ print(header)
 arguments = argparse.ArgumentParser(
     prog="arrnorm",
     description="Automatic relative radiometric normalization",
-    epilog="SMBYC-IDEAM - Xavier Corredor Llano <xcorredorl@ideam.gov.co>",
+    epilog="Xavier Corredor Llano <xcorredorl@ideam.gov.co>\n"
+           "Sistema de Monitoreo de Bosques y Carbono - SMBYC\n"
+           "IDEAM, Colombia",
     formatter_class=argparse.RawTextHelpFormatter)
 
 arguments.add_argument('-ref', type=str, required=True,
