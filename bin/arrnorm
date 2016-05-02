@@ -122,9 +122,9 @@ class Normalization:
         print('\nDONE: {ref_text} PROCESSED\n'
               '      ArrNorm successfully for:  {img_orig}\n'
               '      image normalized saved in: {img_norm}\n'.format(
-            ref_text=self.ref_text,
-            img_orig=os.path.basename(self.img_target),
-            img_norm=os.path.basename(self.img_norm)))
+                ref_text=self.ref_text,
+                img_orig=os.path.basename(self.img_target),
+                img_norm=os.path.basename(self.img_norm)))
 
     def register(self):
         # ======================================
