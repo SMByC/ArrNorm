@@ -13,7 +13,7 @@ from arrNorm import iMad, radcal, register
 header = '''
 ==============================================================
 
-arrNorm - Automatic Relative Radiometric Normalization
+ArrNorm - Automatic Relative Radiometric Normalization
 
 Some code base on: Dr. Mort Canty
                    https://github.com/mortcanty/CRCDocker
@@ -120,7 +120,7 @@ class Normalization:
         self.clean()
 
         print('\nDONE: {ref_text} PROCESSED\n'
-              '      arrNorm successfully for:  {img_orig}\n'
+              '      ArrNorm successfully for:  {img_orig}\n'
               '      image normalized saved in: {img_norm}\n'.format(
             ref_text=self.ref_text,
             img_orig=os.path.basename(self.img_target),

@@ -6,11 +6,11 @@ fi
 
 cd $ARRNORM_DIR
 
-# check if the project arrNorm exist with VCS
+# check if the project ArrNorm exist with VCS
 if [ ! -d ${ARRNORM_DIR}/.hg ]; then
     cd ..
     rm -rf ${ARRNORM_DIR}
-    hg clone https://bitbucket.org/SMBYC/arrnorm arrNorm
+    hg clone https://bitbucket.org/SMBYC/arrnorm ArrNorm
     cd $ARRNORM_DIR
 fi
 
