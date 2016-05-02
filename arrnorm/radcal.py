@@ -26,7 +26,7 @@ from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly, GDT_Int16
 from scipy import stats
 
-from auxil.auxil import orthoregress
+from arrnorm.auxil.auxil import orthoregress
 
 usage = '''
 Usage:

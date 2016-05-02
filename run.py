@@ -8,7 +8,7 @@ import multiprocessing
 import queue
 from subprocess import call
 
-from arrNorm import iMad, radcal, register
+from arrnorm import iMad, radcal, register
 
 header = '''
 ==============================================================

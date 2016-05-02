@@ -27,7 +27,7 @@ from subprocess import call
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly, GDT_Int16
 
-from auxil.auxil import similarity
+from arrnorm.auxil.auxil import similarity
 
 usage = '''
 Usage:

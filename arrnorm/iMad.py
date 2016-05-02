@@ -28,7 +28,7 @@ from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly, GDT_Float32
 from scipy import linalg, stats
 
-import auxil.auxil as auxil
+import arrnorm.auxil.auxil as auxil
 
 usage = '''
 Usage:
