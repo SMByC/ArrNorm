@@ -19,10 +19,11 @@ setup(
     author_email='xcorredorl@ideam.gov.co, smbyc@ideam.gov.co',
     url='https://bitbucket.org/SMBYC/arrnorm',
     license='GPLv3',
-    packages=find_packages(exclude=('docs',)),
+    packages=find_packages(),
     install_requires=['gdal',
                       'numpy'],
     platforms=['Windows', 'Linux'],
+    scripts=['bin/arrnorm'],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Topic :: Scientific/Engineering :: GIS",
