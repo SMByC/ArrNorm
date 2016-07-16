@@ -90,6 +90,7 @@ class Normalization:
         self.img_ref = img_ref
         self.img_target = img_target
         self.ref_text = "Image ({0}/{1})".format(self.count + 1, len(arg.images))
+        self.max_iters = arg.i
 
     def run(self):
 
@@ -146,7 +147,7 @@ class Normalization:
         print("\n======================================\n"
               "iMad process for:", self.ref_text, os.path.basename(self.img_target))
         self.img_imad = iMad.main(self.img_ref, img_target,
-                                  ref_text=self.ref_text, niter=arg.i)
+                                  ref_text=self.ref_text, max_iters=self.max_iters)
 
     def radcal(self):
         # ======================================

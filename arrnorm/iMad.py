@@ -21,6 +21,7 @@ import getopt
 import os
 import sys
 import time
+from operator import itemgetter
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -52,7 +53,7 @@ For ENVI files, ext1 or ext2 is the empty string.
 -----------------------------------------------------'''
 
 
-def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref_text=''):
+def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=False, ref_text=''):
 
     gdal.AllRegister()
 
@@ -77,10 +78,10 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
     if bands != bands2:
         sys.stderr.write("Size mismatch")
         sys.exit(1)
-    if pos is None:
-        pos = list(range(1, bands + 1))
+    if band_pos is None:
+        band_pos = list(range(1, bands + 1))
     else:
-        bands = len(pos)
+        bands = len(band_pos)
     if dims is None:
         x0 = 0
         y0 = 0
@@ -93,16 +94,17 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
     else:
         x2 = x0
         y2 = y0
+
     print('------------IRMAD -------------')
     print(time.asctime())
     print('time1: ' + img_ref)
     print('time2: ' + img_target)
     start = time.time()
-    #  iteration of MAD
+    # iteration of MAD
     cpm = auxil.Cpm(2 * bands)
     delta = 1.0
     oldrho = np.zeros(bands)
-    itr = 0
+    current_iter = 0
     tile = np.zeros((cols, 2 * bands))
     sigMADs = 0
     means1 = 0
@@ -111,40 +113,41 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
     B = 0
     rasterBands1 = []
     rasterBands2 = []
-    rhos = np.zeros((niter, bands))
-    for b in pos:
-        rasterBands1.append(inDataset1.GetRasterBand(b))
-    for b in pos:
-        rasterBands2.append(inDataset2.GetRasterBand(b))
+    rhos = np.zeros((max_iters, bands))
+    results = []
+    for band in band_pos:
+        rasterBands1.append(inDataset1.GetRasterBand(band))
+        rasterBands2.append(inDataset2.GetRasterBand(band))
 
-    print('Stop condition: max iteration {iter} or delta < 0.001:'.format(iter=niter))
+    print('\nStop condition: max iteration {iter} with auto selection\n'
+          'the best delta for the final result:'.format(iter=max_iters))
 
-    while (delta > 0.001) and (itr < niter):
-        print(' {ref_text} iteration: {iter}, delta: {delta} ({time})'.format(
-            ref_text=ref_text+" ->", iter=itr+1, delta=round(delta, 5), time=time.asctime()))
-        #      spectral tiling for statistics
+    print(' {ref_text} iteration: 0, delta: 1.0 ({time})'.format(ref_text=ref_text + " ->", time=time.asctime()))
+
+    while current_iter < max_iters:
+        # spectral tiling for statistics
         for row in range(rows):
             for k in range(bands):
                 tile[:, k] = rasterBands1[k].ReadAsArray(x0, y0 + row, cols, 1)
                 tile[:, bands + k] = rasterBands2[k].ReadAsArray(x2, y2 + row, cols, 1)
-            #          eliminate no-data pixels
+            # eliminate no-data pixels
             tile = np.nan_to_num(tile)
             tst1 = np.sum(tile[:, 0:bands], axis=1)
             tst2 = np.sum(tile[:, bands::], axis=1)
             idx1 = set(np.where((tst1 > 0))[0])
             idx2 = set(np.where((tst2 > 0))[0])
             idx = list(idx1.intersection(idx2))
-            if itr > 0:
+            if current_iter > 0:
                 mads = np.asarray((tile[:, 0:bands] - means1) * A - (tile[:, bands::] - means2) * B)
                 chisqr = np.sum((mads / sigMADs) ** 2, axis=1)
                 wts = 1 - stats.chi2.cdf(chisqr, [bands])
                 cpm.update(tile[idx, :], wts[idx])
             else:
                 cpm.update(tile[idx, :])
-            #     weighted covariance matrices and means
+        # weighted covariance matrices and means
         S = cpm.covariance()
         means = cpm.means()
-        #     reset prov means object
+        # reset prov means object
         cpm.__init__(2 * bands)
         s11 = S[0:bands, 0:bands]
         s22 = S[bands:, bands:]
@@ -154,14 +157,14 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
         b1 = s11
         c2 = s21 * linalg.inv(s11) * s12
         b2 = s22
-        #     solution of generalized eigenproblems
+        # solution of generalized eigenproblems
         if bands > 1:
             mu2a, A = auxil.geneiv(c1, b1)
             mu2b, B = auxil.geneiv(c2, b2)
-            #          sort a
+            # sort a
             idx = np.argsort(mu2a)
             A = A[:, idx]
-            #          sort b
+            # sort b
             idx = np.argsort(mu2b)
             B = B[:, idx]
             mu2 = mu2b[idx]
@@ -169,27 +172,52 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
             mu2 = c1 / b1
             A = 1 / np.sqrt(b1)
             B = 1 / np.sqrt(b2)
-        #      canonical correlations
+        # canonical correlations
         rho = np.sqrt(mu2)
         b2 = np.diag(B.T * B)
         sigma = np.sqrt(2 * (1 - rho))
-        #      stopping criterion
+        # stopping criterion
         delta = max(abs(rho - oldrho))
-        rhos[itr, :] = rho
+        rhos[current_iter, :] = rho
         oldrho = rho
-        #      tile the sigmas and means
+        # tile the sigmas and means
         sigMADs = np.tile(sigma, (cols, 1))
         means1 = np.tile(means[0:bands], (cols, 1))
         means2 = np.tile(means[bands::], (cols, 1))
-        #      ensure sum of positive correlations between X and U is positive
+        # ensure sum of positive correlations between X and U is positive
         D = np.diag(1 / np.sqrt(np.diag(s11)))
         s = np.ravel(np.sum(D * s11 * A, axis=0))
         A = A * np.diag(s / np.abs(s))
-        #      ensure positive correlation between each pair of canonical variates
+        # ensure positive correlation between each pair of canonical variates
         cov = np.diag(A.T * s12 * B)
         B = B * np.diag(cov / np.abs(cov))
-        itr += 1
-    print('rho: %s' % str(rho))
+        current_iter += 1
+
+        print(' {ref_text} iteration: {iter}, delta: {delta} ({time})'.format(
+            ref_text=ref_text + " ->", iter=current_iter, delta=round(delta, 5), time=time.asctime()))
+
+        # save parameters
+        results.append((delta, {"iter": current_iter, "A": A, "B": B, "means1": means1, "means2": means2,
+                                "sigMADs": sigMADs, "rho": rho}))
+        if current_iter == max_iters:  # end iteration
+            # select the result with the best delta
+            best_results = sorted(results, key=itemgetter(0))[0]
+            print("\n The best delta for all iterations is {0}, iter num: {1},\n"
+                  " making the final result normalization with this parameters.".
+                  format(round(best_results[0], 5), best_results[1]["iter"]))
+
+            # set the parameter for the best delta
+            delta = best_results[0]
+            A = best_results[1]["A"]
+            B = best_results[1]["B"]
+            means1 = best_results[1]["means1"]
+            means2 = best_results[1]["means2"]
+            sigMADs = best_results[1]["sigMADs"]
+            rho = best_results[1]["rho"]
+
+            del results
+
+    print('\nrho: %s' % str(rho))
     # write results to disk
     driver = inDataset1.GetDriver()
     outDataset = driver.Create(outfn, cols, rows, bands + 1, GDT_Float32)
@@ -221,9 +249,9 @@ def main(img_ref, img_target, niter=25, pos=None, dims=None, graphics=False, ref
     inDataset2 = None
     print('result written to: ' + outfn)
     print('elapsed time: %s' % str(time.time() - start))
-    x = np.array(list(range(itr - 1)))
+    x = np.array(list(range(current_iter - 1)))
     if graphics:
-        plt.plot(x, rhos[0:itr - 1, :])
+        plt.plot(x, rhos[0:current_iter - 1, :])
         plt.title('Canonical correlations')
         plt.show()
 
@@ -237,7 +265,7 @@ if __name__ == '__main__':
         sys.exit()
     pos = None
     dims = None
-    niter = 25
+    num_iter = 25
     graphics = True
     for option, value in options:
         if option == '-h':
@@ -250,9 +278,9 @@ if __name__ == '__main__':
         elif option == '-d':
             dims = eval(value)
         elif option == '-i':
-            niter = eval(value)
+            num_iter = eval(value)
 
     fn1 = args[0]
     fn2 = args[1]
 
-    main(fn1, fn2, niter, pos, dims, graphics)
+    main(fn1, fn2, num_iter, pos, dims, graphics)
