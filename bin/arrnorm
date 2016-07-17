@@ -234,7 +234,7 @@ def process(norm_class, args):
 def meta_process(args):
     process(*args)
 
-print('Creating {num_proc} multiprocesses\n'.format(num_proc=number_of_processes))
+print('Creating {num_proc} multiprocesses'.format(num_proc=number_of_processes))
 
 with multiprocessing.Pool(number_of_processes) as pool:
 
@@ -242,7 +242,7 @@ with multiprocessing.Pool(number_of_processes) as pool:
 
     imap_it = pool.imap(meta_process, TASKS)
 
-    for x in imap_it:
-        x
+    [proc for proc in imap_it]
+
 
 print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))

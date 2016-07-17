@@ -19,7 +19,6 @@
 import getopt
 import time
 import os
-
 import matplotlib.pyplot as plt
 from numpy import *
 from osgeo import gdal
@@ -70,8 +69,8 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
     basename = os.path.basename(img_imad)
     root, ext = os.path.splitext(basename)
     b = root.find('(')
-    e = root.find(')')
-    referenceroot, targetbasename = root[b + 1:e].split('-')
+    err = root.find(')')
+    referenceroot, targetbasename = root[b + 1:err].split('-')
     referencefn = path + '/' + referenceroot + ext
     targetfn = path + '/' + targetbasename
     targetroot, targetext = os.path.splitext(targetbasename)
@@ -81,8 +80,8 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
         imadbands = imadDataset.RasterCount
         cols = imadDataset.RasterXSize
         rows = imadDataset.RasterYSize
-    except Exception as e:
-        print('Error: %s  --Image could not be read' % e)
+    except Exception as err:
+        print('Error: {}  --Image could not be read'.format(err))
         sys.exit(1)
     referenceDataset = gdal.Open(referencefn, GA_ReadOnly)
     targetDataset = gdal.Open(targetfn, GA_ReadOnly)
@@ -120,13 +119,13 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
         x = referenceDataset.GetRasterBand(k).ReadAsArray(x0, y0, cols, rows).astype(float).ravel()
         y = targetDataset.GetRasterBand(k).ReadAsArray(x0, y0, cols, rows).astype(float).ravel()
         b, a, R = orthoregress(y[idx], x[idx])
-        print('band: %i  slope: %f  intercept: %f  correlation: %f' % (k, b, a, R))
+        print('band: {}  slope: {} intercept: {}  correlation: {}'.format(k, b, a, R))
         my = max(y[idx])
         if (j < 7) and graphics:
             plt.subplot(2, 3, j)
             plt.plot(y[idx], x[idx], '.')
             plt.plot([0, my], [a, a + b * my])
-            plt.title('Band %i' % k)
+            plt.title('Band {}'.format(k))
             if ((j < 4) and (bands < 4)) or j > 3:
                 plt.xlabel('Target')
             if (j == 1) or (j == 4):
@@ -150,7 +149,7 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
         try:
             cols = fsDataset.RasterXSize
             rows = fsDataset.RasterYSize
-        except Exception as e:
+        except Exception as err:
             print('Error %s  -- Image could not be read in')
             sys.exit(1)
         driver = fsDataset.GetDriver()
@@ -175,7 +174,7 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
         print('full result written to: ' + fsoutfn)
         return fsoutfn
 
-    print('elapsed time: %s' % str(time.time() - start))
+    print('elapsed time: {}'.format(time.time() - start))
     return outfn
 
 

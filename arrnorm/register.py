@@ -77,7 +77,7 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
     print(time.asctime())
     print('reference image: ' + img_ref)
     print('warp image: ' + img_target)
-    print('warp band: %i' % warpband)
+    print('warp band: {}'.format(warpband))
 
     start = time.time()
 
@@ -98,8 +98,8 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
         cols2 = inDataset2.RasterXSize
         rows2 = inDataset2.RasterYSize
         bands2 = inDataset2.RasterCount
-    except Exception as e:
-        print('Error %s  --Image could not be read in' % e)
+    except Exception as err:
+        print('Error {}  --Image could not be read in'.format(err))
         sys.exit(1)
 
     if chunksize is not None:
@@ -169,8 +169,8 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
 
     del inDataset1
     del inDataset2
-    print('Warped image written to: %s' % outfn)
-    print('elapsed time: %s' % str(time.time() - start))
+    print('Warped image written to: {}'.format(outfn))
+    print('elapsed time: {}'.format(time.time() - start))
 
     return outfn
 

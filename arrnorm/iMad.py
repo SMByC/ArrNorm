@@ -22,7 +22,6 @@ import os
 import sys
 import time
 from operator import itemgetter
-
 import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import gdal
@@ -72,8 +71,8 @@ def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=F
         cols2 = inDataset2.RasterXSize
         rows2 = inDataset2.RasterYSize
         bands2 = inDataset2.RasterCount
-    except Exception as e:
-        print('Error: %s  --Images could not be read.' % e)
+    except Exception as err:
+        print('Error: {}  --Images could not be read.'.format(err))
         sys.exit(1)
     if bands != bands2:
         sys.stderr.write("Size mismatch")
@@ -217,7 +216,7 @@ def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=F
 
             del results
 
-    print('\nrho: %s' % str(rho))
+    print('\nRHO: {}'.format(rho))
     # write results to disk
     driver = inDataset1.GetDriver()
     outDataset = driver.Create(outfn, cols, rows, bands + 1, GDT_Float32)
@@ -248,7 +247,7 @@ def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=F
     inDataset1 = None
     inDataset2 = None
     print('result written to: ' + outfn)
-    print('elapsed time: %s' % str(time.time() - start))
+    print('elapsed time: {}'.format(time.time() - start))
     x = np.array(list(range(current_iter - 1)))
     if graphics:
         plt.plot(x, rhos[0:current_iter - 1, :])
