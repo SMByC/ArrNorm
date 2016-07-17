@@ -133,8 +133,8 @@ def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=F
             tile = np.nan_to_num(tile)
             tst1 = np.sum(tile[:, 0:bands], axis=1)
             tst2 = np.sum(tile[:, bands::], axis=1)
-            idx1 = set(np.where((tst1 > 0))[0])
-            idx2 = set(np.where((tst2 > 0))[0])
+            idx1 = set(np.where((tst1 != 0))[0])
+            idx2 = set(np.where((tst2 != 0))[0])
             idx = list(idx1.intersection(idx2))
             if current_iter > 0:
                 mads = np.asarray((tile[:, 0:bands] - means1) * A - (tile[:, bands::] - means2) * B)
