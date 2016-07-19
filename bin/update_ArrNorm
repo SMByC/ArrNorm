@@ -15,7 +15,7 @@ if [ ! -d ${ARRNORM_DIR}/.hg ]; then
 fi
 
 # synchronize changes with repository, update and clean
-hg pull
+hg pull https://bitbucket.org/SMBYC/arrnorm
 hg update -C
 hg status -un|xargs rm 2> /dev/null
 
