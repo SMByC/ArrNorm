@@ -118,6 +118,18 @@ def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=F
         rasterBands1.append(inDataset1.GetRasterBand(band))
         rasterBands2.append(inDataset2.GetRasterBand(band))
 
+    for band in range(bands):
+        # check if the band data has only zeros
+        if not rasterBands1[band].ReadAsArray().any():
+            print("\nERROR: the band No. {0} for the file '{1}'\n"
+                  "has only zeros! please check it.\n\n(Ctrl+C to exit)\n".format(band+1, basename1))
+            sys.exit(1)
+        # check if the band data has only zeros
+        if not rasterBands2[band].ReadAsArray().any():
+            print("\nERROR: the band No. {0} for the file '{1}'\n"
+                  "has only zeros! please check it.\n\n(Ctrl+C to exit)\n".format(band+1, basename2))
+            sys.exit(1)
+
     print('\nStop condition: max iteration {iter} with auto selection\n'
           'the best delta for the final result:'.format(iter=max_iters))
 
