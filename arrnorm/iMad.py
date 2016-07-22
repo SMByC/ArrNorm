@@ -52,7 +52,7 @@ For ENVI files, ext1 or ext2 is the empty string.
 -----------------------------------------------------'''
 
 
-def main(img_ref, img_target, max_iters=25, band_pos=None, dims=None, graphics=False, ref_text=''):
+def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=False, ref_text=''):
 
     gdal.AllRegister()
 

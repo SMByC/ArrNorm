@@ -42,7 +42,7 @@ arguments = argparse.ArgumentParser(
 arguments.add_argument('-ref', type=str, required=True,
                        help='reference image for iMad normalize')
 
-arguments.add_argument('-i', type=int, default=25,
+arguments.add_argument('-i', type=int, default=30,
                        help='number of iterations', required=False)
 
 arguments.add_argument('-t', type=float, default=0.95,
