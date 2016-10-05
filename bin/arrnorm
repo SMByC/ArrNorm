@@ -143,7 +143,7 @@ class Normalization:
         maxy = geoTransform[3]
         maxx = minx + geoTransform[1] * data.RasterXSize
         miny = maxy + geoTransform[5] * data.RasterYSize
-        print("Extent: ", minx, maxy, maxx, miny)
+        print("Extent:", minx, maxy, maxx, miny)
         data = None
         filename, ext = os.path.splitext(os.path.basename(self.img_ref))
         self.img_ref_clip = os.path.join(os.path.dirname(os.path.abspath(self.img_target)), filename + "_clip" + ext)
@@ -158,14 +158,13 @@ class Normalization:
             print('\nError clipping reference image: ' + str(return_code))
             sys.exit(1)
 
-
     def register(self):
         # ======================================
         # registration image-image in frequency domain
 
         print("\n======================================\n"
               "Registration image-image in frequency domain:", self.ref_text, os.path.basename(self.img_target))
-        self.img_target_reg = register.main(self.img_ref, self.img_target, arg.warpband, arg.chunksize)
+        self.img_target_reg = register.main(self.img_ref_clip, self.img_target, arg.warpband, arg.chunksize)
 
     def imad(self):
         # ======================================
@@ -178,7 +177,7 @@ class Normalization:
 
         print("\n======================================\n"
               "iMad process for:", self.ref_text, os.path.basename(self.img_target))
-        self.img_imad = iMad.main(self.img_ref, img_target,
+        self.img_imad = iMad.main(self.img_ref_clip, img_target,
                                   ref_text=self.ref_text, max_iters=self.max_iters)
 
     def radcal(self):
