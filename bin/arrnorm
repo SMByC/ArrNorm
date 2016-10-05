@@ -99,6 +99,8 @@ class Normalization:
             count=str(self.count + 1) + '/' + str(len(arg.images))
         ))
 
+        self.clipper()
+
         if arg.reg:
             self.register()
             #self.no_negative_value(self.img_target_reg)
@@ -126,6 +128,36 @@ class Normalization:
                 ref_text=self.ref_text,
                 img_orig=os.path.basename(self.img_target),
                 img_norm=os.path.basename(self.img_norm)))
+
+    def clipper(self):
+        """Clip the reference image with the target image"""
+        import gdal
+        from gdalconst import GA_ReadOnly
+
+        print("\n======================================\n"
+              "Clipping the ref image with target:", self.ref_text, os.path.basename(self.img_ref))
+
+        data = gdal.Open(self.img_target, GA_ReadOnly)
+        geoTransform = data.GetGeoTransform()
+        minx = geoTransform[0]
+        maxy = geoTransform[3]
+        maxx = minx + geoTransform[1] * data.RasterXSize
+        miny = maxy + geoTransform[5] * data.RasterYSize
+        print("Extent: ", minx, maxy, maxx, miny)
+        data = None
+        filename, ext = os.path.splitext(os.path.basename(self.img_ref))
+        self.img_ref_clip = os.path.join(os.path.dirname(os.path.abspath(self.img_target)), filename + "_clip" + ext)
+
+        return_code = call(
+            'gdal_translate -projwin ' + ' '.join([str(x) for x in [minx, maxy, maxx, miny]]) +
+            ' -of GTiff ' + self.img_ref + ' ' + self.img_ref_clip,
+            shell=True)
+        if return_code == 0:  # successfully
+            print('Clipped ref image successfully: ' + os.path.basename(self.img_ref_clip))
+        else:
+            print('\nError clipping reference image: ' + str(return_code))
+            sys.exit(1)
+
 
     def register(self):
         # ======================================
@@ -214,6 +246,9 @@ class Normalization:
     def clean(self):
         # delete the MAD file
         os.remove(self.img_imad)
+        # delete the clip reference image
+        os.remove(self.img_ref_clip)
+
 
 
 # ======================================
