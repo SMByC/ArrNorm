@@ -39,8 +39,8 @@ arguments = argparse.ArgumentParser(
            "IDEAM, Colombia",
     formatter_class=argparse.RawTextHelpFormatter)
 
-arguments.add_argument('-ref', type=str, required=True,
-                       help='reference image for iMad normalize')
+arguments.add_argument('-ref', type=str, default="/home/arrnorm/data/ref_images/av2575_utmz18_relfectancia.img",
+                       help='reference image for iMad normalize', required=False)
 
 arguments.add_argument('-i', type=int, default=30,
                        help='number of iterations', required=False)
