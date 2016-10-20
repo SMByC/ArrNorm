@@ -146,7 +146,9 @@ class Normalization:
         print("Extent:", minx, maxy, maxx, miny)
         data = None
         filename, ext = os.path.splitext(os.path.basename(self.img_ref))
-        self.img_ref_clip = os.path.join(os.path.dirname(os.path.abspath(self.img_target)), filename + "_clip" + ext)
+        self.img_ref_clip = os.path.join(os.path.dirname(os.path.abspath(self.img_target)),
+                                         filename + "_" + os.path.splitext(os.path.basename(self.img_target))[0]
+                                         + "_clip" + ext)
 
         return_code = call(
             'gdal_translate -projwin ' + ' '.join([str(x) for x in [minx, maxy, maxx, miny]]) +
