@@ -213,7 +213,7 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
             # save parameters
             results.append((delta, {"iter": current_iter, "A": A, "B": B, "means1": means1, "means2": means2,
                                     "sigMADs": sigMADs, "rho": rho}))
-        except ValueError:
+        except Exception as err:
             print("\n WARNING: Occurred a exception value error for the last iteration No. {0},\n"
                   " then the ArrNorm will be use the best result at the moment calculated, you\n"
                   " should check the result and all bands in input file if everything is correct.".format(current_iter))
