@@ -137,27 +137,27 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
     print(' {ref_text} iteration: 0, delta: 1.0 ({time})'.format(ref_text=ref_text + " ->", time=time.asctime()))
 
     while current_iter < max_iters:
-        # spectral tiling for statistics
-        for row in range(rows):
-            for k in range(bands):
-                tile[:, k] = rasterBands1[k].ReadAsArray(x0, y0 + row, cols, 1)
-                tile[:, bands + k] = rasterBands2[k].ReadAsArray(x2, y2 + row, cols, 1)
-            # eliminate no-data pixels
-            tile = np.nan_to_num(tile)
-            tst1 = np.sum(tile[:, 0:bands], axis=1)
-            tst2 = np.sum(tile[:, bands::], axis=1)
-            idx1 = set(np.where((tst1 != 0))[0])
-            idx2 = set(np.where((tst2 != 0))[0])
-            idx = list(idx1.intersection(idx2))
-            if current_iter > 0:
-                mads = np.asarray((tile[:, 0:bands] - means1) * A - (tile[:, bands::] - means2) * B)
-                chisqr = np.sum((mads / sigMADs) ** 2, axis=1)
-                wts = 1 - stats.chi2.cdf(chisqr, [bands])
-                cpm.update(tile[idx, :], wts[idx])
-            else:
-                cpm.update(tile[idx, :])
-
         try:
+            # spectral tiling for statistics
+            for row in range(rows):
+                for k in range(bands):
+                    tile[:, k] = rasterBands1[k].ReadAsArray(x0, y0 + row, cols, 1)
+                    tile[:, bands + k] = rasterBands2[k].ReadAsArray(x2, y2 + row, cols, 1)
+                # eliminate no-data pixels
+                tile = np.nan_to_num(tile)
+                tst1 = np.sum(tile[:, 0:bands], axis=1)
+                tst2 = np.sum(tile[:, bands::], axis=1)
+                idx1 = set(np.where((tst1 != 0))[0])
+                idx2 = set(np.where((tst2 != 0))[0])
+                idx = list(idx1.intersection(idx2))
+                if current_iter > 0:
+                    mads = np.asarray((tile[:, 0:bands] - means1) * A - (tile[:, bands::] - means2) * B)
+                    chisqr = np.sum((mads / sigMADs) ** 2, axis=1)
+                    wts = 1 - stats.chi2.cdf(chisqr, [bands])
+                    cpm.update(tile[idx, :], wts[idx])
+                else:
+                    cpm.update(tile[idx, :])
+
             # weighted covariance matrices and means
             S = cpm.covariance()
             means = cpm.means()
