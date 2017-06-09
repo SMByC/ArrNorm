@@ -10,12 +10,12 @@ cd $ARRNORM_DIR
 if [ ! -d ${ARRNORM_DIR}/.hg ]; then
     cd ..
     rm -rf ${ARRNORM_DIR}
-    hg clone https://bitbucket.org/SMBYC/arrnorm ArrNorm
+    hg clone https://bitbucket.org/smbyc/arrnorm ArrNorm
     cd $ARRNORM_DIR
 fi
 
 # synchronize changes with repository, update and clean
-hg pull https://bitbucket.org/SMBYC/arrnorm
+hg pull https://bitbucket.org/smbyc/arrnorm
 hg update -C
 hg status -un|xargs rm 2> /dev/null
 
