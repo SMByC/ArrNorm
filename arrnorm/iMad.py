@@ -75,7 +75,7 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
         print('Error: {}  --Images could not be read.'.format(err))
         sys.exit(1)
     if bands != bands2:
-        sys.stderr.write("Size mismatch")
+        sys.stderr.write("The number of bands does not match between reference and target image")
         sys.exit(1)
     if band_pos is None:
         band_pos = list(range(1, bands + 1))
