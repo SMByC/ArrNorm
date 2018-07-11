@@ -61,7 +61,7 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
     root1, ext1 = os.path.splitext(basename1)
     basename2 = os.path.basename(img_target)
     root2, ext2 = os.path.splitext(basename2)
-    outfn = os.path.join(path, 'MAD({0}-{1}){2}'.format(root1, basename2, ext1))
+    outfn = os.path.join(path, 'MAD({0}&{1}){2}'.format(root1, basename2, ext1))
     inDataset1 = gdal.Open(img_ref, GA_ReadOnly)
     inDataset2 = gdal.Open(img_target, GA_ReadOnly)
     try:

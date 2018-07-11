@@ -70,7 +70,7 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
     root, ext = os.path.splitext(basename)
     b = root.find('(')
     err = root.find(')')
-    referenceroot, targetbasename = root[b + 1:err].split('-')
+    referenceroot, targetbasename = root[b + 1:err].split('&')
     referencefn = path + '/' + referenceroot + ext
     targetfn = path + '/' + targetbasename
     targetroot, targetext = os.path.splitext(targetbasename)
