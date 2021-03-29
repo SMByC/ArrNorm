@@ -137,7 +137,7 @@ class Normalization:
     def clipper(self):
         """Clip the reference image with the target image"""
         from osgeo import gdal
-        from gdalconst import GA_ReadOnly
+        from osgeo.gdalconst import GA_ReadOnly
 
         print("\n======================================\n"
               "Clipping the ref image with target:", self.ref_text, os.path.basename(self.img_ref))
