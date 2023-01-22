@@ -279,6 +279,8 @@ def process(norm_class, args):
 def meta_process(args):
     process(*args)
 
+
+print('Reference image: ', os.path.basename(arg.ref))
 print('Creating {num_proc} multiprocesses'.format(num_proc=number_of_processes))
 
 with multiprocessing.Pool(number_of_processes) as pool:
