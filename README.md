@@ -15,7 +15,7 @@ Stop condition is set by max iteration or with a minimum no-change probability t
 
 ---
 
-> *Note:* For uninstall/update this plugin Windows, due to some dlls that the plugin has, you must first deactivate, restart Qgis and finally update and activate.
+> Check the [ArrNorm-Qgis-processing](https://github.com/SMByC/ArrNorm-Qgis-processing) implementation of Arrnorm as a Qgis processing.
 
 ## Parameters
 
