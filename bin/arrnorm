@@ -23,9 +23,9 @@ ArrNorm - Automatic Relative Radiometric Normalization
 Some code base on: Dr. Mort Canty
                    https://github.com/mortcanty/CRCDocker
 
-Copyright (c) 2016 SMBYC-IDEAM
-Authors: Xavier Corredor Llano <xcorredorl@ideam.gov.co>
-Sistema de Monitoreo de Bosques y Carbono - SMBYC
+Copyright (c) SMByC-IDEAM
+Author: Xavier C. Llano <xavier.corredor.llano@gmail.com>
+Sistema de Monitoreo de Bosques y Carbono - SMByC
 IDEAM, Colombia
 
 ==============================================================
