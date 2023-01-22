@@ -17,7 +17,7 @@ setup(
     long_description=README,
     author='Xavier C. Llano, SMBYC-IDEAM',
     author_email='xavier.corredor.llano@gmail.com, smbyc@ideam.gov.co',
-    url='https://bitbucket.org/smbyc/arrnorm',
+    url='https://github.com/SMByC/ArrNorm',
     license='GPLv3',
     packages=find_packages(),
     install_requires=['gdal',
