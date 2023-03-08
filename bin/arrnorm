@@ -47,21 +47,14 @@ arguments = argparse.ArgumentParser(
 arguments.add_argument('-ref', type=str, default="/home/smbyc/data/Cristhian/Landsat/AV2575_C2_2000_2021_v1.tif",
                        help='reference image for iMad normalize', required=False)
 
-arguments.add_argument('-i', type=int, default=30,
+arguments.add_argument('-i', type=int, default=10,
                        help='number of iterations', required=False)
 
 arguments.add_argument('-t', type=float, default=0.95,
                        help='no-change probability threshold', required=False)
 
-def check_mask_option(option):
-    if option in ['yes', 'Yes', 'YES']:
-        return True
-    if option in ['no', 'No', 'NO']:
-        return False
-    raise argparse.ArgumentTypeError('mask option invalid, should be: "yes" or "no"')
-
-arguments.add_argument('-m', type=check_mask_option, default='yes',
-                       help='create and apply nodata mask, (yes or no)', required=False)
+arguments.add_argument('-m', action='store_true', default=False,
+                       help='create and apply nodata mask', required=False)
 
 # arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
 arguments.add_argument('-p', type=int, default=1,
