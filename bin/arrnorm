@@ -228,7 +228,7 @@ class Normalization:
         self.mask_file = os.path.join(os.path.dirname(os.path.abspath(img_to_process)), filename + "_mask" + ext)
         return_code = call(
             'gdal_calc.py -A "' + img_to_process + '" --type=Byte --co COMPRESS=PACKBITS  --co BIGTIFF=YES --outfile="'
-            + self.mask_file + '" --calc="1*(A>0)" --NoDataValue=0 --quiet',
+            + self.mask_file + '" --calc="1*(A>0)" --NoDataValue=0 --quiet --overwrite',
             shell=True)
         if return_code == 0:  # successfully
             print('Mask created successfully: ' + os.path.basename(self.mask_file))
@@ -244,7 +244,7 @@ class Normalization:
               'Applying mask for:', self.ref_text, os.path.basename(self.img_norm))
         return_code = call(
             'gdal_calc.py -A "' + self.img_norm + '" -B "' + self.mask_file
-            + '" --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 --co BIGTIFF=YES TILED=YES --outfile="'
+            + '" --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 --co BIGTIFF=YES --outfile="'
             + self.img_norm + '" --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite --quiet',
             shell=True)
         if return_code == 0:  # successfully
