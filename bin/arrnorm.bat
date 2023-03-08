@@ -1,2 +1,2 @@
 @echo off
-python %~dp0\arrnorm
+python %~dp0\arrnorm %*
