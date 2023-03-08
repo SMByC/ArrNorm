@@ -25,7 +25,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     package_data={'arrnorm': ['auxil/*']},
-    scripts=['bin/arrnorm'],
+    scripts=['bin/arrnorm', 'bin/arrnorm.bat'],
     classifiers=[
         "Topic :: Scientific/Engineering :: GIS",
         "Intended Audience :: Science/Research",
