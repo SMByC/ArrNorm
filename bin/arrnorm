@@ -194,11 +194,14 @@ class Normalization:
 
         print('\n======================================\n'
               'Applying mask for:', self.ref_text, os.path.basename(self.img_norm))
+        tmp_img_norm = self.img_norm.replace('.tif', '_tmp.tif')
 
         try:
-            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=self.img_norm, type="UInt16",
+            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm, type="UInt16",
                       calc="A*(B==1)", NoDataValue=0, allBands="A", overwrite=True, quiet=True,
                       creation_options=["COMPRESS=LZW", "PREDICTOR=2", "BIGTIFF=YES"])
+            os.remove(self.img_norm)
+            os.rename(tmp_img_norm, self.img_norm)
             print('Mask applied successfully: ' + os.path.basename(self.mask_file))
         except Exception as e:
             print('\nError applying mask: ' + str(e))
