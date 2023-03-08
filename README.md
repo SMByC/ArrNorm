@@ -17,11 +17,20 @@ Stop condition is set by max iteration or with a minimum no-change probability t
 
 > Check the [ArrNorm-Qgis-processing](https://github.com/SMByC/ArrNorm-Qgis-processing) implementation of Arrnorm as a Qgis processing.
 
+## Installation
+
+For example with Anaconda/Conda environment:
+
+```bash
+conda install gdal numpy scipy matplotlib
+pip install https://github.com/SMByC/ArrNorm/archive/master.zip
+```
+
 ## Parameters
 
-* **--ref** *reference image*: The reference image to normalize the target image.
-* **-p** *number of threads*: Number of threads to use (default: 1).
-* **-i** *max iterations*: Maximum number of iterations (default: 30).
+* **-ref** *reference image*: The reference image to normalize the target image.
+* **-p** *number of threads*: Number of threads to process several files at the same time (default: 1).
+* **-i** *max iterations*: Maximum number of iterations (default: 10).
 * **-m** *create mask*: Create a mask file with the valid data (default: False).
 
 For other parameters check the help:
@@ -30,10 +39,13 @@ For other parameters check the help:
 $ arrnorm -h
 ```
 
-Example:
+Examples:
 
 ```bash
-$ arrnorm -p 4 -i 20 -m --ref reference.tif *.tif
+$ arrnorm -ref reference.tif target.tif
+```
+```bash
+$ arrnorm -i 15 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
 ```
 
 ## About us
