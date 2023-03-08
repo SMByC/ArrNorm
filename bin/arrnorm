@@ -7,6 +7,7 @@ import argparse
 import multiprocessing
 import queue
 from subprocess import call
+from osgeo_utils.gdal_calc import Calc as gdal_calc
 
 # add project dir to pythonpath
 project_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -30,80 +31,36 @@ IDEAM, Colombia
 
 ==============================================================
 '''
-print(header)
-
-# ==============================================================================
-# PARSER AND CHECK ARGUMENTS
-
-# Create parser arguments
-arguments = argparse.ArgumentParser(
-    prog="arrnorm",
-    description="Automatic relative radiometric normalization",
-    epilog="Xavier Corredor Llano <xcorredorl@ideam.gov.co>\n"
-           "Sistema de Monitoreo de Bosques y Carbono - SMBYC\n"
-           "IDEAM, Colombia",
-    formatter_class=argparse.RawTextHelpFormatter)
-
-arguments.add_argument('-ref', type=str, default="/home/smbyc/data/Cristhian/Landsat/AV2575_C2_2000_2021_v1.tif",
-                       help='reference image for iMad normalize', required=False)
-
-arguments.add_argument('-i', type=int, default=10,
-                       help='number of iterations', required=False)
-
-arguments.add_argument('-t', type=float, default=0.95,
-                       help='no-change probability threshold', required=False)
-
-arguments.add_argument('-m', action='store_true', default=False,
-                       help='create and apply nodata mask', required=False)
-
-# arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
-arguments.add_argument('-p', type=int, default=1,
-                       help='number of process/threads', required=False)
-
-arguments.add_argument('-reg', action='store_true', default=False,
-                       help='registration image-image in frequency domain', required=False)
-
-arguments.add_argument('-warpband', type=int, default=2,
-                       help='number of target band for make registration, requires "-reg"', required=False)
-
-arguments.add_argument('-chunksize', type=int, default=None,
-                       help='chunk size for make registration by chunks, requires "-reg"', required=False)
-
-arguments.add_argument('-onlyreg', action='store_true', default=False,
-                       help='only makes registration process and not iMad normalize, requires "-reg"', required=False)
-
-arguments.add_argument('images', type=str, nargs='+',
-                       help='images to apply the iMad normalization')
-
-arg = arguments.parse_args()
-
-
-# ==============================================================================
-# PROCESS IMAGES
 
 
 class Normalization:
-    def __init__(self, count, img_ref, img_target):
+    def __init__(self, count, img_ref, img_target, max_iters, threshold, reg, onlyreg, mask, warpband, chunksize):
         self.count = count
         self.img_ref = img_ref
         self.img_target = img_target
-        self.ref_text = "Image ({0}/{1})".format(self.count + 1, len(arg.images))
-        self.max_iters = arg.i
+        self.ref_text = "Image ({0})".format(self.count + 1)
+        self.max_iters = max_iters
+        self.threshold = threshold
+        self.reg = reg
+        self.onlyreg = onlyreg
+        self.mask = mask
+        self.warpband = warpband
+        self.chunksize = chunksize
 
     def run(self):
 
         print("\nPROCESSING IMAGE: {target} ({count})".format(
             target=os.path.basename(self.img_target),
-            count=str(self.count + 1) + '/' + str(len(arg.images))
+            count=str(self.count + 1)
         ))
 
         self.clipper()
 
-        if arg.reg:
+        if self.reg:
             self.register()
             #self.no_negative_value(self.img_target_reg)
 
-            if arg.onlyreg:
+            if self.onlyreg:
                 print('\nDONE: {ref_text} PROCESSED\n'
                       '      register successfully for:  {img_orig}\n'.format(
                         ref_text=self.ref_text,
@@ -114,7 +71,7 @@ class Normalization:
         self.radcal()
         self.no_negative_value(self.img_norm)
 
-        if arg.m:
+        if self.mask:
             self.make_mask()
             self.apply_mask()
 
@@ -164,13 +121,13 @@ class Normalization:
 
         print("\n======================================\n"
               "Registration image-image in frequency domain:", self.ref_text, os.path.basename(self.img_target))
-        self.img_target_reg = register.main(self.img_ref_clip, self.img_target, arg.warpband, arg.chunksize)
+        self.img_target_reg = register.main(self.img_ref_clip, self.img_target, self.warpband, self.chunksize)
 
     def imad(self):
         # ======================================
         # iMad process
 
-        if arg.reg:
+        if self.reg:
             img_target = self.img_target_reg
         else:
             img_target = self.img_target
@@ -187,7 +144,7 @@ class Normalization:
         print("\n======================================\n"
               "Radcal process for:", self.ref_text, os.path.basename(self.img_target),
               " with iMad image: ", os.path.basename(self.img_imad))
-        self.img_norm = radcal.main(self.img_imad, ncpThresh=arg.t)
+        self.img_norm = radcal.main(self.img_imad, ncpThresh=self.threshold)
 
     def no_negative_value(self, image):
         # ======================================
@@ -195,21 +152,20 @@ class Normalization:
 
         print('\n======================================\n'
               'Converting negative values for:', self.ref_text, os.path.basename(image))
-        return_code = call(
-            'gdal_calc.py -A "' + image + '" --outfile="' + image + '" --type=UInt16 --calc="A*(A>=0)" --NoDataValue=0'
-                                                                    ' --allBands=A  --overwrite --quiet --co BIGTIFF=YES',
-            shell=True)
-        if return_code == 0:  # successfully
+
+        try:
+            gdal_calc(A=image, outfile=image, type="UInt16", calc="A*(A>=0)", NoDataValue=0,
+                      allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES"])
             print('Negative values converted successfully: ' + os.path.basename(image))
-        else:
-            print('\nError converting values: ' + str(return_code))
+        except Exception as e:
+            print('\nError converting values: ' + str(e))
             sys.exit(1)
 
     def make_mask(self):
         # ======================================
         # Make mask
 
-        if arg.reg:
+        if self.reg:
             img_to_process = self.img_target_reg
         else:
             img_to_process = self.img_target
@@ -219,14 +175,13 @@ class Normalization:
 
         filename, ext = os.path.splitext(os.path.basename(img_to_process))
         self.mask_file = os.path.join(os.path.dirname(os.path.abspath(img_to_process)), filename + "_mask" + ext)
-        return_code = call(
-            'gdal_calc.py -A "' + img_to_process + '" --type=Byte --co COMPRESS=PACKBITS  --co BIGTIFF=YES --outfile="'
-            + self.mask_file + '" --calc="1*(A>0)" --NoDataValue=0 --quiet --overwrite',
-            shell=True)
-        if return_code == 0:  # successfully
+
+        try:
+            gdal_calc(A=img_to_process, outfile=self.mask_file, type="Byte", calc="1*(A>0)", NoDataValue=0,
+                      allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES", "COMPRESS=PACKBITS"])
             print('Mask created successfully: ' + os.path.basename(self.mask_file))
-        else:
-            print('\nError creating mask: ' + str(return_code))
+        except Exception as e:
+            print('\nError creating mask: ' + str(e))
             sys.exit(1)
 
     def apply_mask(self):
@@ -235,15 +190,14 @@ class Normalization:
 
         print('\n======================================\n'
               'Applying mask for:', self.ref_text, os.path.basename(self.img_norm))
-        return_code = call(
-            'gdal_calc.py -A "' + self.img_norm + '" -B "' + self.mask_file
-            + '" --type=UInt16 --co COMPRESS=LZW --co PREDICTOR=2 --co BIGTIFF=YES --outfile="'
-            + self.img_norm + '" --calc="A*(B==1)" --NoDataValue=0  --allBands=A  --overwrite --quiet',
-            shell=True)
-        if return_code == 0:  # successfully
+
+        try:
+            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=self.img_norm, type="UInt16",
+                      calc="A*(B==1)", NoDataValue=0, allBands="A", overwrite=True, quiet=True,
+                      creation_options=["COMPRESS=LZW", "PREDICTOR=2", "BIGTIFF=YES"])
             print('Mask applied successfully: ' + os.path.basename(self.mask_file))
-        else:
-            print('\nError applied mask: ' + str(return_code))
+        except Exception as e:
+            print('\nError applying mask: ' + str(e))
             sys.exit(1)
 
     def clean(self):
@@ -251,17 +205,6 @@ class Normalization:
         os.remove(self.img_imad)
         # delete the clip reference image
         os.remove(self.img_ref_clip)
-
-
-
-# ======================================
-# Multiprocessing
-
-multiprocessing.freeze_support()
-# create the instance
-q = queue.Queue()
-# number of threads
-number_of_processes = arg.p
 
 
 def process(norm_class, args):
@@ -273,16 +216,69 @@ def meta_process(args):
     process(*args)
 
 
-print('Reference image: ', os.path.basename(arg.ref))
-print('Creating {num_proc} multiprocesses'.format(num_proc=number_of_processes))
 
-with multiprocessing.Pool(number_of_processes) as pool:
+if __name__ == '__main__':
+    # ======================================
+    multiprocessing.freeze_support()
 
-    TASKS = [(Normalization, (img_count, arg.ref, img_target)) for img_count, img_target in enumerate(arg.images)]
+    # ======================================
+    # PARSER AND CHECK ARGUMENTS
 
-    imap_it = pool.imap(meta_process, TASKS)
+    # Create parser arguments
+    arguments = argparse.ArgumentParser(
+        prog="arrnorm",
+        description="Automatic relative radiometric normalization",
+        epilog="Xavier Corredor Llano <xcorredorl@ideam.gov.co>\n"
+               "Sistema de Monitoreo de Bosques y Carbono - SMBYC\n"
+               "IDEAM, Colombia",
+        formatter_class=argparse.RawTextHelpFormatter)
 
-    [proc for proc in imap_it]
+    arguments.add_argument('-ref', type=str, default="/home/smbyc/data/Cristhian/Landsat/AV2575_C2_2000_2021_v1.tif",
+                           help='reference image for iMad normalize', required=False)
+    arguments.add_argument('-i', type=int, default=10,
+                           help='number of iterations', required=False)
+    arguments.add_argument('-t', type=float, default=0.95,
+                           help='no-change probability threshold', required=False)
+    arguments.add_argument('-m', action='store_true', default=False,
+                           help='create and apply nodata mask', required=False)
+    # arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
+    arguments.add_argument('-p', type=int, default=1,
+                           help='number of process/threads', required=False)
+    arguments.add_argument('-reg', action='store_true', default=False,
+                           help='registration image-image in frequency domain', required=False)
+    arguments.add_argument('-warpband', type=int, default=2,
+                           help='number of target band for make registration, requires "-reg"', required=False)
+    arguments.add_argument('-chunksize', type=int, default=None,
+                           help='chunk size for make registration by chunks, requires "-reg"', required=False)
+    arguments.add_argument('-onlyreg', action='store_true', default=False,
+                           help='only makes registration process and not iMad normalize, requires "-reg"',
+                           required=False)
+    arguments.add_argument('images', type=str, nargs='+',
+                           help='images to apply the iMad normalization')
+
+    arg = arguments.parse_args()
+
+    # ======================================
+    # Processing
+
+    print(header)
+    # create the instance
+    q = queue.Queue()
+    # number of threads
+    number_of_processes = arg.p
+
+    print('Reference image: ', os.path.basename(arg.ref))
+    print('Creating {num_proc} multiprocesses'.format(num_proc=number_of_processes))
 
 
-print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))
+    with multiprocessing.Pool(number_of_processes) as pool:
+
+        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t, arg.reg, arg.onlyreg, arg.m, arg.warpband, arg.chunksize))
+                 for img_count, img_target in enumerate(arg.images)]
+
+        imap_it = pool.imap(meta_process, TASKS)
+
+        [proc for proc in imap_it]
+
+    print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))
+
