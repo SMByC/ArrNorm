@@ -153,9 +153,13 @@ class Normalization:
         print('\n======================================\n'
               'Converting negative values for:', self.ref_text, os.path.basename(image))
 
+        tmp_image = image.replace('.tif', '_tmp.tif')
+
         try:
-            gdal_calc(A=image, outfile=image, type="UInt16", calc="A*(A>=0)", NoDataValue=0,
+            gdal_calc(A=image, outfile=tmp_image, type="UInt16", calc="A*(A>=0)", NoDataValue=0,
                       allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES"])
+            os.remove(image)
+            os.rename(tmp_image, image)
             print('Negative values converted successfully: ' + os.path.basename(image))
         except Exception as e:
             print('\nError converting values: ' + str(e))
