@@ -17,7 +17,6 @@
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 
-import getopt
 import os
 import sys
 import time
@@ -152,7 +151,7 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
                 idx = list(idx1.intersection(idx2))
                 if current_iter > 0:
                     mads = np.asarray((tile[:, 0:bands] - means1) * A - (tile[:, bands::] - means2) * B)
-                    chisqr = np.sum((mads / sigMADs) ** 2, axis=1)
+                    chisqr = np.sum(np.square(mads / sigMADs), axis=1)
                     wts = 1 - stats.chi2.cdf(chisqr, [bands])
                     cpm.update(tile[idx, :], wts[idx])
                 else:
@@ -186,12 +185,16 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
                 mu2 = c1 / b1
                 A = 1 / np.sqrt(b1)
                 B = 1 / np.sqrt(b2)
+
             # canonical correlations
             rho = np.sqrt(mu2)
             b2 = np.diag(B.T * B)
             sigma = np.sqrt(2 * (1 - rho))
             # stopping criterion
             delta = max(abs(rho - oldrho))
+            if bands == 1:
+                delta = delta.item()
+
             rhos[current_iter, :] = rho
             oldrho = rho
             # tile the sigmas and means
@@ -260,7 +263,7 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
             tile[:, k] = rasterBands1[k].ReadAsArray(x0, y0 + row, cols, 1)
             tile[:, bands + k] = rasterBands2[k].ReadAsArray(x2, y2 + row, cols, 1)
         mads = np.asarray((tile[:, 0:bands] - means1) * A - (tile[:, bands::] - means2) * B)
-        chisqr = np.sum((mads / sigMADs) ** 2, axis=1)
+        chisqr = np.sum(np.square(mads / sigMADs), axis=1)
         for k in range(bands):
             outBands[k].WriteArray(np.reshape(mads[:, k], (1, cols)), 0, row)
         outBands[bands].WriteArray(np.reshape(chisqr, (1, cols)), 0, row)
@@ -278,31 +281,3 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
         plt.show()
 
     return outfn
-
-if __name__ == '__main__':
-    options, args = getopt.getopt(sys.argv[1:], 'hnp:i:d:')
-    if len(args) != 2:
-        print('Incorrect number of arguments')
-        print(usage)
-        sys.exit()
-    pos = None
-    dims = None
-    num_iter = 25
-    graphics = True
-    for option, value in options:
-        if option == '-h':
-            print(usage)
-            sys.exit()
-        elif option == '-n':
-            graphics = False
-        elif option == '-p':
-            pos = eval(value)
-        elif option == '-d':
-            dims = eval(value)
-        elif option == '-i':
-            num_iter = eval(value)
-
-    fn1 = args[0]
-    fn2 = args[1]
-
-    main(fn1, fn2, num_iter, pos, dims, graphics)
