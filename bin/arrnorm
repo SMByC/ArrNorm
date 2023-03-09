@@ -6,7 +6,8 @@ import sys
 import argparse
 import multiprocessing
 import queue
-from subprocess import call
+from osgeo import gdal
+from osgeo.gdalconst import GA_ReadOnly
 from osgeo_utils.gdal_calc import Calc as gdal_calc
 
 # add project dir to pythonpath
@@ -34,7 +35,7 @@ IDEAM, Colombia
 
 
 class Normalization:
-    def __init__(self, count, img_ref, img_target, max_iters, threshold, reg, onlyreg, mask, warpband, chunksize):
+    def __init__(self, count, img_ref, img_target, max_iters, threshold, reg, onlyreg, noneg, mask, warpband, chunksize):
         self.count = count
         self.img_ref = img_ref
         self.img_target = img_target
@@ -43,6 +44,7 @@ class Normalization:
         self.threshold = threshold
         self.reg = reg
         self.onlyreg = onlyreg
+        self.noneg = noneg
         self.mask = mask
         self.warpband = warpband
         self.chunksize = chunksize
@@ -76,7 +78,8 @@ class Normalization:
 
         self.imad()
         self.radcal()
-        self.no_negative_value(self.img_norm)
+        if self.noneg:
+            self.no_negative_value(self.img_norm)
 
         if self.mask:
             self.make_mask()
@@ -93,8 +96,6 @@ class Normalization:
 
     def clipper(self):
         """Clip the reference image with the target image"""
-        from osgeo import gdal
-        from osgeo.gdalconst import GA_ReadOnly
 
         print("\n======================================\n"
               "Clipping the ref image with target:", self.ref_text, os.path.basename(self.img_ref))
@@ -112,23 +113,13 @@ class Normalization:
                                          filename + "_" + os.path.splitext(os.path.basename(self.img_target))[0]
                                          + "_clip" + ext)
 
-        return_code = call(
-            'gdal_translate -projwin ' + ' '.join([str(x) for x in [minx, maxy, maxx, miny]]) +
-            ' -of GTiff "' + self.img_ref + '" "' + self.img_ref_clip + '"',
-            shell=True)
-        if return_code == 0:  # successfully
+        try:
+            gdal.Translate(self.img_ref_clip, self.img_ref, projWin=[minx, maxy, maxx, miny], format='GTiff')
             print('Clipped ref image successfully: ' + os.path.basename(self.img_ref_clip))
-        else:
-            print('\nError clipping reference image: ' + str(return_code))
+        except Exception as e:
+            self.clean()
+            print('\nError clipping reference image: ' + str(e))
             sys.exit(1)
-
-    def register(self):
-        # ======================================
-        # registration image-image in frequency domain
-
-        print("\n======================================\n"
-              "Registration image-image in frequency domain:", self.ref_text, os.path.basename(self.img_target))
-        self.img_target_reg = register.main(self.img_ref_clip, self.img_target, self.warpband, self.chunksize)
 
     def imad(self):
         # ======================================
@@ -143,6 +134,14 @@ class Normalization:
               "iMad process for:", self.ref_text, os.path.basename(self.img_target))
         self.img_imad = iMad.main(self.img_ref_clip, img_target,
                                   ref_text=self.ref_text, max_iters=self.max_iters)
+
+    def register(self):
+        # ======================================
+        # registration image-image in frequency domain
+
+        print("\n======================================\n"
+              "Registration image-image in frequency domain:", self.ref_text, os.path.basename(self.img_target))
+        self.img_target_reg = register.main(self.img_ref_clip, self.img_target, self.warpband, self.chunksize)
 
     def radcal(self):
         # ======================================
@@ -163,12 +162,13 @@ class Normalization:
         tmp_image = image.replace('.tif', '_tmp.tif')
 
         try:
-            gdal_calc(A=image, outfile=tmp_image, type="UInt16", calc="A*(A>=0)", NoDataValue=0,
+            gdal_calc(A=image, outfile=tmp_image, calc="A*(A>=0)", NoDataValue=0,
                       allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES"])
             os.remove(image)
             os.rename(tmp_image, image)
             print('Negative values converted successfully: ' + os.path.basename(image))
         except Exception as e:
+            self.clean()
             print('\nError converting values: ' + str(e))
             sys.exit(1)
 
@@ -188,7 +188,7 @@ class Normalization:
         self.mask_file = os.path.join(os.path.dirname(os.path.abspath(img_to_process)), filename + "_mask" + ext)
 
         try:
-            gdal_calc(A=img_to_process, outfile=self.mask_file, type="Byte", calc="1*(A>0)", NoDataValue=0,
+            gdal_calc(A=img_to_process, outfile=self.mask_file, type="Byte", calc="1*(A>0)", hideNoData=True,
                       allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES", "COMPRESS=PACKBITS"])
             print('Mask created successfully: ' + os.path.basename(self.mask_file))
         except Exception as e:
@@ -204,21 +204,22 @@ class Normalization:
         tmp_img_norm = self.img_norm.replace('.tif', '_tmp.tif')
 
         try:
-            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm, type="UInt16",
+            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm,
                       calc="A*(B==1)", NoDataValue=0, allBands="A", overwrite=True, quiet=True,
                       creation_options=["COMPRESS=LZW", "PREDICTOR=2", "BIGTIFF=YES"])
             os.remove(self.img_norm)
             os.rename(tmp_img_norm, self.img_norm)
             print('Mask applied successfully: ' + os.path.basename(self.mask_file))
         except Exception as e:
+            self.clean()
             print('\nError applying mask: ' + str(e))
             sys.exit(1)
 
-    def clean(self):
+    # def clean(self):
         # delete the MAD file
-        os.remove(self.img_imad)
+        # os.remove(self.img_imad)
         # delete the clip reference image
-        os.remove(self.img_ref_clip)
+        # os.remove(self.img_ref_clip)
 
 
 def process(norm_class, args):
@@ -260,6 +261,8 @@ if __name__ == '__main__':
                            help='number of process/threads', required=False)
     arguments.add_argument('-reg', action='store_true', default=False,
                            help='registration image-image in frequency domain', required=False)
+    arguments.add_argument('-noneg', action='store_true', default=False,
+                           help='convert all negative values to nodata (0) for output', required=False)
     arguments.add_argument('-warpband', type=int, default=2,
                            help='number of target band for make registration, requires "-reg"', required=False)
     arguments.add_argument('-chunksize', type=int, default=None,
@@ -287,7 +290,7 @@ if __name__ == '__main__':
 
     with multiprocessing.Pool(number_of_processes) as pool:
 
-        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t, arg.reg, arg.onlyreg, arg.m, arg.warpband, arg.chunksize))
+        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t, arg.reg, arg.onlyreg, arg.noneg, arg.m, arg.warpband, arg.chunksize))
                  for img_count, img_target in enumerate(arg.images)]
 
         imap_it = pool.imap(meta_process, TASKS)
