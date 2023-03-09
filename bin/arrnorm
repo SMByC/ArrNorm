@@ -47,6 +47,13 @@ class Normalization:
         self.warpband = warpband
         self.chunksize = chunksize
 
+        # define the output type
+        ref_dtype = gdal.Open(self.img_ref, GA_ReadOnly).GetRasterBand(1).DataType
+        target_dtype = gdal.Open(self.img_target, GA_ReadOnly).GetRasterBand(1).DataType
+        self.out_dtype = ref_dtype if ref_dtype > target_dtype else target_dtype
+        ref_dtype = None
+        target_dtype = None
+
     def run(self):
 
         print("\nPROCESSING IMAGE: {target} ({count})".format(
@@ -144,7 +151,7 @@ class Normalization:
         print("\n======================================\n"
               "Radcal process for:", self.ref_text, os.path.basename(self.img_target),
               " with iMad image: ", os.path.basename(self.img_imad))
-        self.img_norm = radcal.main(self.img_imad, ncpThresh=self.threshold)
+        self.img_norm = radcal.main(self.img_imad, ncpThresh=self.threshold, out_dtype=self.out_dtype)
 
     def no_negative_value(self, image):
         # ======================================
