@@ -31,7 +31,6 @@ pip install https://github.com/SMByC/ArrNorm/archive/master.zip
 * **-ref** *reference image*: The reference image to normalize the target image.
 * **-p** *number of threads*: Number of threads to process several files at the same time (default: 1).
 * **-i** *max iterations*: Maximum number of iterations (default: 10).
-* **-m** *create mask*: Create a mask file with the valid data (default: False).
 
 For other parameters check the help:
 
