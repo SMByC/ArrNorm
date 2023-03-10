@@ -22,7 +22,7 @@ Stop condition is set by max iteration or with a minimum no-change probability t
 For example with Anaconda/Conda environment:
 
 ```bash
-conda install gdal numpy scipy matplotlib
+conda install -c conda-forge gdal numpy scipy matplotlib
 pip install https://github.com/SMByC/ArrNorm/archive/master.zip
 ```
 
