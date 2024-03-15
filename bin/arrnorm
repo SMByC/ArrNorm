@@ -204,11 +204,11 @@ if __name__ == '__main__':
 
     arguments.add_argument('-ref', type=str, default="/home/smbyc/data/Cristhian/Landsat/AV2575_C2_2000_2021_v1.tif",
                            help='reference image for iMad normalize', required=False)
-    arguments.add_argument('-i', type=int, default=10,
+    arguments.add_argument('-i', type=int, default=30,
                            help='number of iterations', required=False)
     arguments.add_argument('-t', type=float, default=0.95,
                            help='no-change probability threshold', required=False)
-    arguments.add_argument('-p', type=int, default=1,
+    arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count(),
                            help='number of process/threads', required=False)
     arguments.add_argument('-reg', action='store_true', default=False,
                            help='registration image-image in frequency domain', required=False)
