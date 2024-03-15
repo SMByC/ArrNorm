@@ -257,12 +257,9 @@ if __name__ == '__main__':
     arguments.add_argument('-t', type=float, default=0.95,
                            help='no-change probability threshold', required=False)
     arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count(),
-                           help='no-change probability threshold', required=False)
+                           help='number of process/threads', required=False)
     arguments.add_argument('-m', action='store_true', default=True,
                            help='create and apply nodata mask', required=False)
-    # arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
-    arguments.add_argument('-p', type=int, default=1,
-                           help='number of process/threads', required=False)
     arguments.add_argument('-reg', action='store_true', default=False,
                            help='registration image-image in frequency domain', required=False)
     arguments.add_argument('-noneg', action='store_true', default=False,
