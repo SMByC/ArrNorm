@@ -35,7 +35,7 @@ IDEAM, Colombia
 
 
 class Normalization:
-    def __init__(self, count, img_ref, img_target, max_iters, threshold, reg, onlyreg, noneg, warpband, chunksize):
+    def __init__(self, count, img_ref, img_target, max_iters, threshold, reg, onlyreg, noneg, mask, warpband, chunksize):
         self.count = count
         self.img_ref = img_ref
         self.img_target = img_target
@@ -45,6 +45,7 @@ class Normalization:
         self.reg = reg
         self.onlyreg = onlyreg
         self.noneg = noneg
+        self.mask = mask
         self.warpband = warpband
         self.chunksize = chunksize
 
@@ -79,6 +80,10 @@ class Normalization:
         self.radcal()
         if self.noneg:
             self.no_negative_value(self.img_norm)
+
+        if self.mask:
+            self.make_mask()
+            self.apply_mask()
 
         self.clean()
 
@@ -167,6 +172,49 @@ class Normalization:
             print('\nError converting values: ' + str(e))
             sys.exit(1)
 
+    def make_mask(self):
+        # ======================================
+        # Make mask
+
+        if self.reg:
+            img_to_process = self.img_target_reg
+        else:
+            img_to_process = self.img_target
+
+        print('\n======================================\n'
+              'Making mask for:', self.ref_text, os.path.basename(img_to_process))
+
+        filename, ext = os.path.splitext(os.path.basename(img_to_process))
+        self.mask_file = os.path.join(os.path.dirname(os.path.abspath(img_to_process)), filename + "_mask" + ext)
+
+        try:
+            gdal_calc(A=img_to_process, outfile=self.mask_file, type="Byte", calc="1*(A>0)", hideNoData=True,
+                      allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES", "COMPRESS=PACKBITS"])
+            print('Mask created successfully: ' + os.path.basename(self.mask_file))
+        except Exception as e:
+            print('\nError creating mask: ' + str(e))
+            sys.exit(1)
+
+    def apply_mask(self):
+        # ======================================
+        # Apply mask to image normalized
+
+        print('\n======================================\n'
+              'Applying mask for:', self.ref_text, os.path.basename(self.img_norm))
+        tmp_img_norm = self.img_norm.replace('.tif', '_tmp.tif')
+
+        try:
+            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm,
+                      calc="A*(B==1)", NoDataValue=0, allBands="A", overwrite=True, quiet=True,
+                      creation_options=["COMPRESS=LZW", "PREDICTOR=2", "BIGTIFF=YES"])
+            os.remove(self.img_norm)
+            os.rename(tmp_img_norm, self.img_norm)
+            print('Mask applied successfully: ' + os.path.basename(self.mask_file))
+        except Exception as e:
+            self.clean()
+            print('\nError applying mask: ' + str(e))
+            sys.exit(1)
+
     def clean(self):
         # delete the MAD file
         if os.path.exists(self.img_imad):
@@ -209,6 +257,11 @@ if __name__ == '__main__':
     arguments.add_argument('-t', type=float, default=0.95,
                            help='no-change probability threshold', required=False)
     arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count(),
+                           help='no-change probability threshold', required=False)
+    arguments.add_argument('-m', action='store_true', default=True,
+                           help='create and apply nodata mask', required=False)
+    # arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count() - 1,
+    arguments.add_argument('-p', type=int, default=1,
                            help='number of process/threads', required=False)
     arguments.add_argument('-reg', action='store_true', default=False,
                            help='registration image-image in frequency domain', required=False)
@@ -241,7 +294,7 @@ if __name__ == '__main__':
 
     with multiprocessing.Pool(number_of_processes) as pool:
 
-        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t, arg.reg, arg.onlyreg, arg.noneg, arg.warpband, arg.chunksize))
+        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t, arg.reg, arg.onlyreg, arg.noneg, arg.m, arg.warpband, arg.chunksize))
                  for img_count, img_target in enumerate(arg.images)]
 
         imap_it = pool.imap(meta_process, TASKS)
