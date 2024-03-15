@@ -206,7 +206,7 @@ class Normalization:
         try:
             gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm,
                       calc="A*(B==1)", NoDataValue=0, allBands="A", overwrite=True, quiet=True,
-                      creation_options=["COMPRESS=LZW", "PREDICTOR=2", "BIGTIFF=YES"])
+                      creation_options=["BIGTIFF=YES"])
             os.remove(self.img_norm)
             os.rename(tmp_img_norm, self.img_norm)
             print('Mask applied successfully: ' + os.path.basename(self.mask_file))
