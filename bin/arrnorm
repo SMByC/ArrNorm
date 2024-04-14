@@ -50,11 +50,19 @@ class Normalization:
         self.chunksize = chunksize
 
         # define the output type
-        ref_dtype = gdal.Open(self.img_ref, GA_ReadOnly).GetRasterBand(1).DataType
-        target_dtype = gdal.Open(self.img_target, GA_ReadOnly).GetRasterBand(1).DataType
-        self.out_dtype = ref_dtype if ref_dtype > target_dtype else target_dtype
-        ref_dtype = None
-        target_dtype = None
+        ref_ds = gdal.Open(self.img_ref, GA_ReadOnly)
+        band = ref_ds.GetRasterBand(1)
+        ref_dtype_code = band.DataType
+        # ref_dtype = gdal.GetDataTypeName(ref_dtype_code)
+
+        target_ds = gdal.Open(self.img_target, GA_ReadOnly)
+        band = target_ds.GetRasterBand(1)
+        target_dtype_code = band.DataType
+        # target_dtype = gdal.GetDataTypeName(target_dtype_code)
+
+        self.out_dtype = ref_dtype_code if ref_dtype_code > target_dtype_code else target_dtype_code
+        ref_ds = None
+        target_ds = None
 
     def run(self):
 
