@@ -73,16 +73,16 @@ class Ffn(object):
         self._m, self._N = Gs.shape
         self._K = ls.shape[1]
         #      biased input as column vectors
-        Gs = np.mat(Gs).T
+        Gs = np.asmatrix(Gs).T
         self._Gs = np.vstack((np.ones(self._m), Gs))
         #      biased output vector from hidden layer
-        self._n = np.mat(np.zeros(L + 1))
+        self._n = np.asmatrix(np.zeros(L + 1))
         #      labels as column vectors
-        self._ls = np.mat(ls).T
+        self._ls = np.asmatrix(ls).T
         #      weight matrices
-        self._Wh = np.mat(np.random. \
+        self._Wh = np.asmatrix(np.random. \
                           random((self._N + 1, L))) - 0.5
-        self._Wo = np.mat(np.random. \
+        self._Wo = np.asmatrix(np.random. \
                           random((L + 1, self._K))) - 0.5
 
     def forwardpass(self, G):
@@ -97,7 +97,7 @@ class Ffn(object):
 
     def classify(self, Gs):
         #      vectorized classes and membership probabilities
-        Gs = np.mat(Gs).T
+        Gs = np.asmatrix(Gs).T
         m = Gs.shape[1]
         Gs = np.vstack((np.ones(m), Gs))
         expnt = self._Wh.T * Gs
@@ -196,7 +196,7 @@ class Ffncg(Ffn):
         #      gradient of cross entropy wrt synaptic weights
         M, n = self.vforwardpass(self._Gs)
         D_o = self._ls - M
-        D_h = np.mat(n.A * (1 - n.A) * (self._Wo * D_o).A)[1::, :]
+        D_h = np.asmatrix(n.A * (1 - n.A) * (self._Wo * D_o).A)[1::, :]
         dEh = -(self._Gs * D_h.T).ravel()
         dEo = -(n * D_o.T).ravel()
         return np.append(dEh.A, dEo.A)
@@ -213,7 +213,7 @@ class Ffncg(Ffn):
     def rop(self, V):
         #      reshape V to dimensions of Wh and Wo and transpose
         VhT = np.reshape(V[:(self._N + 1) * self._L], (self._N + 1, self._L)).T
-        Vo = np.mat(np.reshape(V[self._L * (self._N + 1)::], (self._L + 1, self._K)))
+        Vo = np.asmatrix(np.reshape(V[self._L * (self._N + 1)::], (self._L + 1, self._K)))
         VoT = Vo.T
         #      transpose the output weights
         Wo = self._Wo
@@ -227,9 +227,9 @@ class Ffncg(Ffn):
         tmp = np.vstack((Z, RIh))
         RN = n.A * (1 - n.A) * tmp.A  # Rv{n}
         RIo = WoT * RN + VoT * n  # Rv{I^o}
-        Rd_o = -np.mat(M * (1 - M) * RIo.A)  # Rv{d^o}
+        Rd_o = -np.asmatrix(M * (1 - M) * RIo.A)  # Rv{d^o}
         Rd_h = n.A * (1 - n.A) * ((1 - 2 * n.A) * tmp.A * (Wo * D_o).A + (Vo * D_o).A + (Wo * Rd_o).A)
-        Rd_h = np.mat(Rd_h[1::, :])  # Rv{d^h}
+        Rd_h = np.asmatrix(Rd_h[1::, :])  # Rv{d^h}
         REo = -(n * Rd_o.T - RN * D_o.T).ravel()  # Rv{dE/dWo}
         REh = -(self._Gs * Rd_h.T).ravel()  # Rv{dE/dWh}
         return np.hstack((REo, REh))  # v^T.H
@@ -255,14 +255,14 @@ class Ffncg(Ffn):
                 alpha = -dTg / delta
                 dw = alpha * d
                 w += dw
-                self._Wh = np.mat(np.reshape(w[0:self._L * (self._N + 1)], (self._N + 1, self._L)))
-                self._Wo = np.mat(np.reshape(w[self._L * (self._N + 1)::], (self._L + 1, self._K)))
+                self._Wh = np.asmatrix(np.reshape(w[0:self._L * (self._N + 1)], (self._N + 1, self._L)))
+                self._Wo = np.asmatrix(np.reshape(w[self._L * (self._N + 1)::], (self._L + 1, self._K)))
                 E2 = self.cost()  # E(w+dw)
                 Ddelta = -2 * (E1 - E2) / (alpha * dTg)  # quadricity
                 if Ddelta < 0.25:
                     w -= dw  # undo weight change
-                    self._Wh = np.mat(np.reshape(w[0:self._L * (self._N + 1)], (self._N + 1, self._L)))
-                    self._Wo = np.mat(np.reshape(w[self._L * (self._N + 1)::], (self._L + 1, self._K)))
+                    self._Wh = np.asmatrix(np.reshape(w[0:self._L * (self._N + 1)], (self._N + 1, self._L)))
+                    self._Wo = np.asmatrix(np.reshape(w[self._L * (self._N + 1)::], (self._L + 1, self._K)))
                     lam *= 4.0  # decrease step size
                     if lam > 1e20:  # if step too small
                         k = self.epochs  # give up

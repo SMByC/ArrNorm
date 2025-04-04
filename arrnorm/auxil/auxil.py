@@ -187,7 +187,7 @@ class Cpm(object):
         self.cov = cov
 
     def covariance(self):
-        c = np.mat(self.cov / (self.sw - 1.0))
+        c = np.asmatrix(self.cov / (self.sw - 1.0))
         d = np.diag(np.diag(c))
         return c + c.T - d
 
@@ -235,17 +235,17 @@ class DataArray(object):
             a = np.transpose(self.data)
             sumw = np.sum(w)
             ws = np.tile(w, (self.bands, 1))
-            meansa = np.mat(np.sum(np.multiply(ws, a), 1) / sumw, dtype=np.float32)
+            meansa = np.asmatrix(np.sum(np.multiply(ws, a), 1) / sumw, dtype=np.float32)
             mns = np.tile(meansa.T, (1, self.pixels))
             ac = a - mns
-            ac = np.mat(np.multiply(ac, np.sqrt(ws)))
+            ac = np.asmatrix(np.multiply(ac, np.sqrt(ws)))
             if da is None:
                 bc = ac
             else:
-                meansb = np.mat(np.sum(np.multiply(ws, b), 1) / sumw, dtype=np.float32)
+                meansb = np.asmatrix(np.sum(np.multiply(ws, b), 1) / sumw, dtype=np.float32)
                 mns = np.tile(meansb.T, (1, self.pixels))
                 bc = b - mns
-                bc = np.mat(np.multiply(bc, np.sqrt(ws)))
+                bc = np.asmatrix(np.multiply(bc, np.sqrt(ws)))
             covmat = ac * bc.T / sumw
             return (meansa, covmat)
         except:
@@ -351,17 +351,17 @@ def kernelMatrix(X, Y=None, gma=None, kernel=0):
     if Y is None:
         Y = X
     if kernel == 0:
-        X = np.mat(X)
-        Y = np.mat(Y)
+        X = np.asmatrix(X)
+        Y = np.asmatrix(Y)
         return (X * (Y.T), 0)
     else:
         m = X[:, 0].size
         n = Y[:, 0].size
-        onesm = np.mat(np.ones(m))
-        onesn = np.mat(np.ones(n))
-        K = np.mat(np.sum(X * X, axis=1)).T * onesn
-        K = K + onesm.T * np.mat(np.sum(Y * Y, axis=1))
-        K = K - 2 * np.mat(X) * np.mat(Y).T
+        onesm = np.asmatrix(np.ones(m))
+        onesn = np.asmatrix(np.ones(n))
+        K = np.asmatrix(np.sum(X * X, axis=1)).T * onesn
+        K = K + onesm.T * np.asmatrix(np.sum(Y * Y, axis=1))
+        K = K - 2 * np.asmatrix(X) * np.asmatrix(Y).T
         if gma is None:
             scale = np.sum(np.sqrt(abs(K))) / (m ** 2 - m)
             gma = 1 / (2 * scale ** 2)
@@ -370,7 +370,7 @@ def kernelMatrix(X, Y=None, gma=None, kernel=0):
 
 def center(K):
     m = K[:, 0].size
-    Imm = np.mat(np.ones((m, m)))
+    Imm = np.asmatrix(np.ones((m, m)))
     return K - (Imm * K + K * Imm - np.sum(K) / m) / m
 
 
@@ -416,10 +416,10 @@ def pca(da):
         #      sort eivs in decreasing order of variance
         idx = (np.argsort(lams))[::-1]
         lams = lams[idx]
-        eivs = np.mat(eivs[:, idx], np.float32)
+        eivs = np.asmatrix(eivs[:, idx], np.float32)
         #      project in bsq format, single precision, flattened
         mns = np.tile(means, (da.pixels, 1))
-        ac = np.mat(da.data - mns)
+        ac = np.asmatrix(da.data - mns)
         mns = None
         #      PCs in bsq format
         pcs = (ac * eivs).T
@@ -448,7 +448,7 @@ def mnf(da, samples, lines, bands):
         lams = lams[idx]
         eivs = (eivs[:, idx]).T
         #      MNFs in bsq format
-        mnfs = eivs * np.mat(img).T
+        mnfs = eivs * np.asmatrix(img).T
         mnfs = mnfs.ravel().tostring()
         return (lams, mnfs)
     except:
