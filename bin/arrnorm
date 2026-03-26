@@ -258,7 +258,7 @@ if __name__ == '__main__':
                "IDEAM, Colombia",
         formatter_class=argparse.RawTextHelpFormatter)
 
-    arguments.add_argument('-ref', type=str, default="/home/smbyc/cona2/Imagenes/Landsat/Average_25_75/AV2575_C2_2000_2021_v1.tif",
+    arguments.add_argument('-ref', type=str, default="/home/smbyc/cona3/Imagenes/Landsat/Average_25_75/AV2575_C2_2000_2021_v1.tif",
                            help='reference image for iMad normalize', required=False)
     arguments.add_argument('-i', type=int, default=30,
                            help='number of iterations', required=False)
@@ -307,4 +307,3 @@ if __name__ == '__main__':
         [proc for proc in imap_it]
 
     print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))
-
