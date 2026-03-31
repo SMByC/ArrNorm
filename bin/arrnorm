@@ -197,7 +197,7 @@ class Normalization:
 
         try:
             gdal_calc(A=img_to_process, outfile=self.mask_file, type="Byte", calc="1*(A>0)", hideNoData=True,
-                      allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES", "COMPRESS=PACKBITS"])
+                      overwrite=True, quiet=True, creation_options=["BIGTIFF=YES", "COMPRESS=PACKBITS"])
 
             # create color table
             colors = gdal.ColorTable()
