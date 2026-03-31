@@ -7,7 +7,7 @@ import argparse
 import multiprocessing
 import queue
 from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly
+from osgeo.gdalconst import GA_ReadOnly, GA_Update
 from osgeo_utils.gdal_calc import Calc as gdal_calc
 
 # add project dir to pythonpath
@@ -198,6 +198,20 @@ class Normalization:
         try:
             gdal_calc(A=img_to_process, outfile=self.mask_file, type="Byte", calc="1*(A>0)", hideNoData=True,
                       allBands="A", overwrite=True, quiet=True, creation_options=["BIGTIFF=YES", "COMPRESS=PACKBITS"])
+
+            # create color table
+            colors = gdal.ColorTable()
+            colors.SetColorEntry(0, (0, 0, 0, 255))
+            colors.SetColorEntry(1, (0, 255, 0, 255))
+
+            # set color table to the mask
+            mask_ds = gdal.Open(self.mask_file, GA_Update)
+            if mask_ds is not None:
+                mask_band = mask_ds.GetRasterBand(1)
+                mask_band.SetRasterColorTable(colors)
+                mask_band = None
+                mask_ds = None
+
             print('Mask created successfully: ' + os.path.basename(self.mask_file))
         except Exception as e:
             print('\nError creating mask: ' + str(e))
