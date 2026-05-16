@@ -2,8 +2,8 @@
 # ******************************************************************************
 #  Name:     radcal.py
 #  Purpose:  Automatic radiometric normalization
-#  Usage:             
-#       python radcal.py  [-p 'bandPositions' -d 'spatialDimensions' -t NoChangeProbThresh] imadFile [FullSceneFile] 
+#  Usage:
+#       python radcal.py  [-p 'bandPositions' -d 'spatialDimensions' -t NoChangeProbThresh] imadFile [FullSceneFile]
 #
 #  Copyright (c) 2011, Mort Canty
 #    This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,14 @@
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
-
+import os
+import sys
 import getopt
 import time
-import os
-import matplotlib.pyplot as plt
-from numpy import *
+import numpy as np
+from numpy import zeros, where, resize
 from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly
+from osgeo.gdalconst import GA_ReadOnly, GDT_UInt16
 from scipy import stats
 
 from arrnorm.auxil.auxil import orthoregress
@@ -111,6 +111,11 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None, graphic
         outDataset.SetProjection(projection)
     aa = []
     bb = []
+    if graphics:
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            graphics = False  # matplotlib not available; skip graphics
     if graphics:
         plt.figure(1, (9, 6))
     j = 1

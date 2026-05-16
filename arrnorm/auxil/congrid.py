@@ -30,10 +30,10 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
     This prevents extrapolation one element beyond bounds of input array.
     '''
     if not a.dtype in [n.float64, n.float32]:
-        a = n.cast[float](a)
+        a = a.astype(float)
 
-    m1 = n.cast[int](minusone)
-    ofs = n.cast[int](centre) * 0.5
+    m1 = int(minusone)
+    ofs = int(centre) * 0.5
     old = n.array(a.shape)
     ndims = len(a.shape)
     if len(newdims) != ndims:
@@ -60,7 +60,7 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
             dimlist.append((old[i] - m1) / (newdims[i] - m1) \
                            * (base + ofs) - ofs)
         # specify old dims
-        olddims = [n.arange(i, dtype=n.float) for i in list(a.shape)]
+        olddims = [n.arange(i, dtype=float) for i in list(a.shape)]
 
         # first interpolation - for ndims = any
         mint = scipy.interpolate.interp1d(olddims[-1], a, kind=method)
@@ -84,7 +84,7 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
         nslices = [slice(0, j) for j in list(newdims)]
         newcoords = n.mgrid[nslices]
 
-        newcoords_dims = list(range(n.rank(newcoords)))
+        newcoords_dims = list(range(newcoords.ndim))
         # make first index last
         newcoords_dims.append(newcoords_dims.pop(0))
         newcoords_tr = newcoords.transpose(newcoords_dims)

@@ -2,8 +2,8 @@
 # ******************************************************************************
 #  Name:     register.py
 #  Purpose:  Perfrom image-image registration in frequency domain
-#  Usage:             
-#    python register.py 
+#  Usage:
+#    python register.py
 #
 #  Copyright (c) 2013, Mort Canty
 #    This program is free software; you can redistribute it and/or modify

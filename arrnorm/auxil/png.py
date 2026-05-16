@@ -225,7 +225,7 @@ else:
         """Convert row of bytes to string.  Expects `row` to be an
         ``array``.
         """
-        return row.tostring()
+        return row.tobytes()  # tobytes() replaces deprecated tostring()
 
 
 def interleave_planes(ipixels, apixels, ipsize, apsize):
@@ -1085,7 +1085,7 @@ class _readable:
     def read(self, n):
         r = self.buf[self.offset:self.offset + n]
         if isarray(r):
-            r = r.tostring()
+            r = r.tobytes()  # tobytes() replaces deprecated tostring()
         self.offset += n
         return r
 
@@ -2527,7 +2527,7 @@ class Test(unittest.TestCase):
             print("skipping numpy test", file=sys.stderr)
             return
 
-        rows = [list(map(numpy.bool, [0, 1]))]
+        rows = [list(map(bool, [0, 1]))]  # numpy.bool removed in numpy 1.24; use built-in bool
         b = topngbytes('numpybool.png', rows, 2, 1,
                        greyscale=True, alpha=False, bitdepth=1)
 

@@ -35,8 +35,11 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 
 if platform.system() == 'Windows':
     lib = ctypes.cdll.LoadLibrary(os.path.join(script_dir, 'prov_means.dll'))
-elif platform.system() == 'Linux':
+if platform.system() == 'Linux':
     lib = ctypes.cdll.LoadLibrary(os.path.join(script_dir, 'libprov_means.so'))
+if platform.system() == "Darwin":
+    lib = ctypes.cdll.LoadLibrary(os.path.join(script_dir, 'libprov_means.dylib'))
+
 provmeans = lib.provmeans
 provmeans.restype = None
 c_double_p = ctypes.POINTER(ctypes.c_double)
@@ -187,7 +190,8 @@ class Cpm(object):
         self.cov = cov
 
     def covariance(self):
-        c = np.asmatrix(self.cov / (self.sw - 1.0))
+        # Returns a symmetric covariance matrix as a plain ndarray (not np.matrix)
+        c = np.array(self.cov / (self.sw - 1.0))
         d = np.diag(np.diag(c))
         return c + c.T - d
 
@@ -201,17 +205,17 @@ class Cpm(object):
 # --------------------------
 
 class DataArray(object):
-    '''Representation of an image or image blob (string)
+    '''Representation of an image or image blob (bytes)
     as a samples*lines by bands float32 numpy array.
     Image must have BIP or BSQ interleave and uint8 or float32 format'''
 
     def __init__(self, image, samples, lines, bands, interleave, dtype):
         m = samples * lines
-        if isinstance(image, str):
+        if isinstance(image, (bytes, bytearray)):  # binary data (Python 3)
             if dtype == 1:
-                data = np.fromstring(image, dtype=np.uint8)
+                data = np.frombuffer(image, dtype=np.uint8)  # frombuffer replaces deprecated fromstring
             else:
-                data = np.fromstring(image, dtype=np.float32)
+                data = np.frombuffer(image, dtype=np.float32)
         else:
             data = np.asarray(image, np.float32)
         if interleave == 'bsq':
@@ -223,7 +227,7 @@ class DataArray(object):
         self.bands = bands
 
     def covw(self, da=None, w=None):
-        #  return (weighted) means of self as row vector and (weighted) variance-covariance matrix of self
+        #  return (weighted) means of self as 1-D ndarray and (weighted) variance-covariance matrix
         #  if da is supplied, returns (weighted) covariance matrix of self with da
         try:
             if w is None:
@@ -235,18 +239,16 @@ class DataArray(object):
             a = np.transpose(self.data)
             sumw = np.sum(w)
             ws = np.tile(w, (self.bands, 1))
-            meansa = np.asmatrix(np.sum(np.multiply(ws, a), 1) / sumw, dtype=np.float32)
-            mns = np.tile(meansa.T, (1, self.pixels))
-            ac = a - mns
-            ac = np.asmatrix(np.multiply(ac, np.sqrt(ws)))
+            meansa = (np.sum(np.multiply(ws, a), axis=1) / sumw).astype(np.float32)  # (bands,) ndarray
+            mns = np.tile(meansa, (self.pixels, 1)).T  # (bands, pixels)
+            ac = np.multiply(a - mns, np.sqrt(ws))  # (bands, pixels)
             if da is None:
                 bc = ac
             else:
-                meansb = np.asmatrix(np.sum(np.multiply(ws, b), 1) / sumw, dtype=np.float32)
-                mns = np.tile(meansb.T, (1, self.pixels))
-                bc = b - mns
-                bc = np.asmatrix(np.multiply(bc, np.sqrt(ws)))
-            covmat = ac * bc.T / sumw
+                meansb = (np.sum(np.multiply(ws, b), axis=1) / sumw).astype(np.float32)
+                mns = np.tile(meansb, (self.pixels, 1)).T
+                bc = np.multiply(b - mns, np.sqrt(ws))
+            covmat = ac @ bc.T / sumw  # use @ instead of deprecated np.matrix *
             return (meansa, covmat)
         except:
             return None
@@ -256,36 +258,36 @@ def make_png_rgb(samples, lines, band1, band2, band3):
     # return an rgb png image from 3 bytestrings
     #  make a boxed row flat pixel array for png.Writer
     size = samples * lines
-    RGB = np.fromstring(band1 + band2 + band3, dtype=np.uint8)
+    RGB = np.frombuffer(band1 + band2 + band3, dtype=np.uint8)  # frombuffer replaces deprecated fromstring
     RGB = np.reshape(RGB, (3, size)).transpose()
     RGB = np.reshape(RGB, (lines, 3 * samples)).tolist()
     #  file object
-    f = io.StringIO()
+    f = io.BytesIO()  # BytesIO for binary PNG data
     #  create PNG
     w = png.Writer(samples, lines)
     w.write(f, RGB)
     return f.getvalue()
 
 
-# histogram stretches for bytestring image representations  
+# histogram stretches for bytestring image representations
 def lin(band):
-    band = np.fromstring(band, dtype=np.uint8)
+    band = np.frombuffer(band, dtype=np.uint8)  # frombuffer replaces deprecated fromstring
     band = linstr(band)
-    return np.asarray(band, np.uint8).tostring()
+    return np.asarray(band, np.uint8).tobytes()  # tobytes() replaces deprecated tostring()
 
 
 def lin2pc(band):
     #  2% linear stretch
-    band = np.fromstring(band, dtype=np.uint8)
+    band = np.frombuffer(band, dtype=np.uint8)  # frombuffer replaces deprecated fromstring
     band = lin2pcstr(band)
-    return np.asarray(band, np.uint8).tostring()
+    return np.asarray(band, np.uint8).tobytes()  # tobytes() replaces deprecated tostring()
 
 
 def histeq(band):
     #  histogram equalization
-    band = np.fromstring(band, dtype=np.uint8)
+    band = np.frombuffer(band, dtype=np.uint8)  # frombuffer replaces deprecated fromstring
     band = histeqstr(band)
-    return np.asarray(band, np.uint8).tostring()
+    return np.asarray(band, np.uint8).tobytes()  # tobytes() replaces deprecated tostring()
 
 
 def stretch(redband, greenband, blueband, enhance):
@@ -300,26 +302,26 @@ def stretch(redband, greenband, blueband, enhance):
 
 
 def byte_stretch(band, dtype=1, rng=None):
-    #  byte stretch an image band coded as string
+    #  byte stretch an image band coded as bytes
     if dtype == 1:
-        tmp = np.fromstring(band, dtype=np.uint8)
+        tmp = np.frombuffer(band, dtype=np.uint8)   # frombuffer replaces deprecated fromstring
     elif dtype == 2:
-        tmp = np.fromstring(band, dtype=np.uint16)
+        tmp = np.frombuffer(band, dtype=np.uint16)
     elif dtype == 4:
-        tmp = np.fromstring(band, dtype=np.float32)
+        tmp = np.frombuffer(band, dtype=np.float32)
     else:
-        tmp = np.fromstring(band, dtype=np.float64)
+        tmp = np.frombuffer(band, dtype=np.float64)
     if rng is None:
         rng = [np.min(tmp), np.max(tmp)]
     tmp = (tmp - rng[0]) * 255.0 / (rng[1] - rng[0])
     tmp = np.where(tmp < 0, 0, tmp)
     tmp = np.where(tmp > 255, 255, tmp)
-    return np.asarray(tmp, np.uint8).tostring()
+    return np.asarray(tmp, np.uint8).tobytes()  # tobytes() replaces deprecated tostring()
 
 
 def normalize(da, coeffs):
-    # return normalized bsq image string from input data array
-    result = ''
+    # return normalized bsq image bytes from input data array
+    result = b''
     for k in range(da.bands):
         b = coeffs[k, 0]
         a = coeffs[k, 1]
@@ -327,7 +329,7 @@ def normalize(da, coeffs):
         g = np.where(g < 0, 0, g)
         g = np.where(g > 255, 255, g)
         g = np.asarray(g, np.uint8)
-        result += g.tostring()
+        result += g.tobytes()  # tobytes() replaces deprecated tostring()
     return result
 
 
@@ -348,20 +350,20 @@ def byteStretch(arr, rng=None):
 # ---------
 
 def kernelMatrix(X, Y=None, gma=None, kernel=0):
+    X = np.asarray(X)
     if Y is None:
         Y = X
-    if kernel == 0:
-        X = np.asmatrix(X)
-        Y = np.asmatrix(Y)
-        return (X * (Y.T), 0)
     else:
-        m = X[:, 0].size
-        n = Y[:, 0].size
-        onesm = np.asmatrix(np.ones(m))
-        onesn = np.asmatrix(np.ones(n))
-        K = np.asmatrix(np.sum(X * X, axis=1)).T * onesn
-        K = K + onesm.T * np.asmatrix(np.sum(Y * Y, axis=1))
-        K = K - 2 * np.asmatrix(X) * np.asmatrix(Y).T
+        Y = np.asarray(Y)
+    if kernel == 0:
+        return (X @ Y.T, 0)  # use @ instead of deprecated np.matrix *
+    else:
+        m = X.shape[0]
+        n = Y.shape[0]
+        # Compute squared Euclidean distance matrix without np.matrix
+        K = np.sum(X * X, axis=1, keepdims=True) * np.ones((1, n))  # (m, n)
+        K = K + np.ones((m, 1)) * np.sum(Y * Y, axis=1, keepdims=True).T
+        K = K - 2 * X @ Y.T
         if gma is None:
             scale = np.sum(np.sqrt(abs(K))) / (m ** 2 - m)
             gma = 1 / (2 * scale ** 2)
@@ -369,9 +371,12 @@ def kernelMatrix(X, Y=None, gma=None, kernel=0):
 
 
 def center(K):
-    m = K[:, 0].size
-    Imm = np.asmatrix(np.ones((m, m)))
-    return K - (Imm * K + K * Imm - np.sum(K) / m) / m
+    # Center a kernel matrix (use ndarray operations instead of deprecated np.matrix)
+    m = K.shape[0]
+    col_means = np.mean(K, axis=0, keepdims=True)   # (1, m)
+    row_means = np.mean(K, axis=1, keepdims=True)   # (m, 1)
+    total_mean = np.mean(K)
+    return K - col_means - row_means + total_mean
 
 
 # generalized eigenproblem
@@ -379,8 +384,8 @@ def center(K):
 
 def choldc(A):
     # Cholesky-Banachiewicz algorithm,
-    # A is a numpy matrix
-    L = A - A
+    # A is a 2-D numpy ndarray
+    L = np.zeros_like(A, dtype=float)
     for i in range(len(L)):
         for j in range(i):
             sm = 0.0
@@ -395,13 +400,14 @@ def choldc(A):
 
 
 def geneiv(A, B):
-    # solves A*x = lambda*B*x for numpy matrices A and B,
-    # returns eigenvectors in columns
+    # solves A*x = lambda*B*x for symmetric ndarrays A and B,
+    # returns real eigenvalues and eigenvectors in columns
     Li = np.linalg.inv(choldc(B))
-    C = Li * A * (Li.transpose())
-    C = np.asmatrix((C + C.transpose()) * 0.5, np.float32)
-    eivs, V = np.linalg.eig(C)
-    return eivs, Li.transpose() * V
+    C = Li @ A @ Li.T
+    C = ((C + C.T) * 0.5).astype(np.float32)  # symmetrize and force real float32
+    # Use eigh (symmetric eigenvalue solver) for real, sorted eigenvalues
+    eivs, V = np.linalg.eigh(C)
+    return eivs, Li.T @ V
 
 
 # ------------------------------------------------
@@ -412,18 +418,18 @@ def geneiv(A, B):
 def pca(da):
     try:
         means, covmat = da.covw()
-        lams, eivs = np.linalg.eigh(covmat)
+        lams, eivs = np.linalg.eigh(np.asarray(covmat))
         #      sort eivs in decreasing order of variance
         idx = (np.argsort(lams))[::-1]
         lams = lams[idx]
-        eivs = np.asmatrix(eivs[:, idx], np.float32)
+        eivs = eivs[:, idx].astype(np.float32)
         #      project in bsq format, single precision, flattened
-        mns = np.tile(means, (da.pixels, 1))
-        ac = np.asmatrix(da.data - mns)
+        mns = np.tile(np.asarray(means).flatten(), (da.pixels, 1))
+        ac = (da.data - mns).astype(np.float32)
         mns = None
         #      PCs in bsq format
-        pcs = (ac * eivs).T
-        pcs = pcs.ravel().tostring()
+        pcs = (ac @ eivs).T
+        pcs = pcs.ravel().tobytes()  # tobytes() replaces deprecated tostring()
         return (lams, pcs)
     except:
         return None
@@ -433,23 +439,23 @@ def mnf(da, samples, lines, bands):
     try:
         #      center
         means, S = da.covw()
-        mns = np.asarray(np.tile(means, (da.pixels, 1)))
+        mns = np.asarray(np.tile(np.asarray(means).flatten(), (da.pixels, 1)))
         img = da.data - mns
         mns = None
         #      shifted image
         imgs = np.reshape(img, (samples, lines, bands))
         imgn = imgs - (np.roll(imgs, 1, axis=0) + np.roll(imgs, 1, axis=1)) / 2
         #      noise covariance
-        dan = DataArray(imgn.tostring(), samples, lines, bands, 'bip', 4)
-        Sn = dan.covw()[1] / 2
-        #      mnf, eigenvalues sorted in increasing order
-        lams, eivs = geneiv(Sn, S)
+        dan = DataArray(imgn.tobytes(), samples, lines, bands, 'bip', 4)  # tobytes() replaces deprecated tostring()
+        Sn = np.asarray(dan.covw()[1]) / 2
+        #      mnf, eigenvalues sorted in increasing order (geneiv now returns ndarray)
+        lams, eivs = geneiv(Sn, np.asarray(S))
         idx = (np.argsort(lams))
         lams = lams[idx]
         eivs = (eivs[:, idx]).T
-        #      MNFs in bsq format
-        mnfs = eivs * np.asmatrix(img).T
-        mnfs = mnfs.ravel().tostring()
+        #      MNFs in bsq format (use @ instead of deprecated np.matrix *)
+        mnfs = eivs @ img.T
+        mnfs = mnfs.ravel().tobytes()  # tobytes() replaces deprecated tostring()
         return (lams, mnfs)
     except:
         return None
