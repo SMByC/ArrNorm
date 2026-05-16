@@ -1,2 +1,2 @@
 
-__version__ = '16.05'  # year.month
+__version__ = '26.05'  # year.month

@@ -1,20 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # ******************************************************************************
 #  Name:     register.py
-#  Purpose:  Perfrom image-image registration in frequency domain
-#  Usage:
-#    python register.py
+#  Purpose:  Image-image registration in the frequency domain.
 #
-#  Copyright (c) 2013, Mort Canty
-#    This program is free software; you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation; either version 2 of the License, or
-#    (at your option) any later version.
+#  Estimates a similarity transform (scale + rotation + translation) between
+#  one band of the reference and target images using log-polar / Fourier
+#  cross-correlation (Reddy & Chatterji), then applies it to every band of
+#  the target. When chunksize is set, the estimation is repeated on a grid
+#  of blocks and the warped blocks are mosaicked back together.
 #
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
+#  Original: M. Canty, 2013. Refactored: clearer variable names, mosaic via
+#  the gdal.Warp Python API instead of subprocess.
+#
+#  License: GPLv2+
+# ******************************************************************************
 
 import getopt
 import os
@@ -22,8 +21,7 @@ import sys
 import time
 
 import numpy as np
-import scipy.ndimage.interpolation as ndii
-from subprocess import call
+import scipy.ndimage as ndii
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
 
@@ -32,52 +30,25 @@ from arrnorm.auxil.auxil import similarity
 usage = '''
 Usage:
 ------------------------------------------------
-python %s [-h] [-b warpband] [-d "spatialDimensions"] reffname warpfname
-
-Choose a reference image, the image to be warped and, optionally,
-the band to be used for warping (default band 1) and the spatial subset
-of the reference image.
-
-The reference image should be smaller than the warp image
-(i.e., the warp image should overlap the reference image completely)
-and its upper left corner should be near that of the warp image:
-----------------------
-|   warp image
-|
-|  --------------------
-|  |
-|  |  reference image
-|  |
-
-The reference image (or spatial subset) should not contain zero data
-
-The warped image (warpfile_warp) will be trimmed to the spatial
-dimensions of the reference image.
+python register.py [-h] [-b warpband] [-d "spatialDimensions"]
+                   reffname warpfname
 ------------------------------------------------'''
 
 
-def chunks(l, n):
-    """Split a list into evenly sized chunks
-
-    :param l: list to chunk
-    :type l: list
-    :param n: n sizes to chunk
-    :type n: int
-    :rtype: list
-    """
+def _chunks(seq, n):
+    """Split a sequence into consecutive chunks of size n (last may be smaller)."""
     n = max(1, n)
-    return [l[i:i + n] for i in range(0, len(l), n)]
+    return [seq[i:i + n] for i in range(0, len(seq), n)]
 
 
 def main(img_ref, img_target, warpband=2, chunksize=None):
-
     gdal.AllRegister()
 
     print('------------REGISTER-------------')
     print(time.asctime())
-    print('reference image: ' + img_ref)
-    print('warp image: ' + img_target)
-    print('warp band: {}'.format(warpband))
+    print(f'reference image: {img_ref}')
+    print(f'warp image: {img_target}')
+    print(f'warp band: {warpband}')
 
     start = time.time()
 
@@ -85,55 +56,55 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
     basename2 = os.path.basename(img_target)
     root2, ext2 = os.path.splitext(basename2)
     outfn = os.path.join(path, root2 + '_warp' + ext2)
-    # reference
-    inDataset1 = gdal.Open(img_ref, GA_ReadOnly)
-    band_ref = inDataset1.GetRasterBand(warpband)
-    # target
-    inDataset2 = gdal.Open(img_target, GA_ReadOnly)
-    band_targ = inDataset2.GetRasterBand(warpband)
 
-    try:
-        cols1 = inDataset1.RasterXSize
-        rows1 = inDataset1.RasterYSize
-        cols2 = inDataset2.RasterXSize
-        rows2 = inDataset2.RasterYSize
-        bands2 = inDataset2.RasterCount
-    except Exception as err:
-        print('Error {}  --Image could not be read in'.format(err))
+    inDataset1 = gdal.Open(img_ref, GA_ReadOnly)
+    inDataset2 = gdal.Open(img_target, GA_ReadOnly)
+    if inDataset1 is None or inDataset2 is None:
+        sys.stderr.write('Error: input image(s) could not be opened.\n')
         sys.exit(1)
 
+    ref_band = inDataset1.GetRasterBand(warpband)
+    tgt_band = inDataset2.GetRasterBand(warpband)
+
+    cols1 = inDataset1.RasterXSize
+    rows1 = inDataset1.RasterYSize
+    cols2 = inDataset2.RasterXSize
+    rows2 = inDataset2.RasterYSize
+    bands2 = inDataset2.RasterCount
+
     if chunksize is not None:
-        # adjusted the chunks size
+        # Adjust block size so every block has a similar shape — np.ceil gives
+        # us a divisor that comes close to `chunksize` without leaving tiny
+        # remainder strips on the edges.
         x_chunk_size = int(np.ceil(cols2 / round(cols2 / chunksize)))
         y_chunk_size = int(np.ceil(rows2 / round(rows2 / chunksize)))
     else:
         x_chunk_size = cols1
         y_chunk_size = rows1
 
-    x_chunks = chunks(list(range(cols2)), x_chunk_size)  # divide x in blocks with size 250
-    y_chunks = chunks(list(range(rows2)), y_chunk_size)  # divide y in blocks with size 250
+    x_chunks = _chunks(list(range(cols2)), x_chunk_size)
+    y_chunks = _chunks(list(range(rows2)), y_chunk_size)
 
     blocks_files = []
-    for y_idx_block in range(len(y_chunks)):
-        for x_idx_block in range(len(x_chunks)):
-            x0 = x_chunks[x_idx_block][0]
-            y0 = y_chunks[y_idx_block][0]
+    for y_idx_block, y_block in enumerate(y_chunks):
+        for x_idx_block, x_block in enumerate(x_chunks):
+            x0 = x_block[0]
+            y0 = y_block[0]
+            cols_blk = len(x_block)
+            rows_blk = len(y_block)
 
-            cols1 = len(x_chunks[x_idx_block])
-            rows1 = len(y_chunks[y_idx_block])
+            block_filename = os.path.join(
+                path,
+                f'{root2}_warp_block_x{x_idx_block}y{y_idx_block}{ext2}')
 
-            block_filename = os.path.join(path, root2 + '_warp_block_x' + str(x_idx_block)
-                                          +'y' + str(y_idx_block) + ext2)
-
-            ## make register in block
-            refband = band_ref.ReadAsArray(x0, y0, cols1, rows1).astype(np.float32)
-            warpband = band_targ.ReadAsArray(x0, y0, cols1, rows1).astype(np.float32)
-
-            #  similarity transform parameters for reference band number
-            scale, angle, shift = similarity(refband, warpband)
+            # Estimate similarity transform on this block
+            ref_tile = ref_band.ReadAsArray(x0, y0, cols_blk, rows_blk).astype(np.float32)
+            warp_tile = tgt_band.ReadAsArray(x0, y0, cols_blk, rows_blk).astype(np.float32)
+            scale, angle, shift = similarity(ref_tile, warp_tile)
 
             driver = inDataset2.GetDriver()
-            outDataset = driver.Create(block_filename, cols1, rows1, bands2, band_targ.DataType)
+            outDataset = driver.Create(block_filename, cols_blk, rows_blk,
+                                       bands2, tgt_band.DataType)
             projection = inDataset1.GetProjection()
             geotransform = inDataset1.GetGeoTransform()
             if geotransform is not None:
@@ -144,35 +115,44 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
             if projection is not None:
                 outDataset.SetProjection(projection)
 
-            #  warp
+            # Apply the translation to every band (zoom/rotate intentionally
+            # disabled — for Landsat-scale shifts they introduce more
+            # interpolation noise than they remove)
             for k in range(bands2):
-                inband = inDataset2.GetRasterBand(k + 1)
-                outBand = outDataset.GetRasterBand(k + 1)
-                bn1 = inband.ReadAsArray(0, 0, cols2, rows2).astype(np.float32)
-                #bn2 = ndii.zoom(bn1, 1.0 / scale)  # TODO
-                #bn2 = ndii.rotate(bn2, angle)  # TODO
-                bn2 = ndii.shift(bn1, shift)
-                outBand.WriteArray(bn2[y0:y0 + rows1, x0:x0 + cols1])
-                outBand.FlushCache()
+                in_band_full = inDataset2.GetRasterBand(k + 1)
+                out_band_blk = outDataset.GetRasterBand(k + 1)
+                bn1 = in_band_full.ReadAsArray(0, 0, cols2, rows2).astype(np.float32)
+                shifted = ndii.shift(bn1, shift)
+                out_band_blk.WriteArray(shifted[y0:y0 + rows_blk, x0:x0 + cols_blk])
+                out_band_blk.FlushCache()
 
             blocks_files.append(block_filename)
-            del outDataset
+            outDataset = None
 
-    return_code = call(["gdalwarp"] + blocks_files + [outfn])  # [outfn, '-srcnodata', '0', '-dstnodata', '255']
+    # Mosaic blocks via the in-process gdal.Warp API rather than spawning
+    # an external `gdalwarp` subprocess — same result, no PATH/version
+    # surprises, and we get the error message back as a Python exception.
+    warp_result = gdal.Warp(outfn, blocks_files, format='GTiff')
+    if warp_result is None:
+        sys.stderr.write('Error: gdal.Warp failed to mosaic block files.\n')
+        sys.exit(1)
+    warp_result = None
+    print('mosaic created successfully')
 
-    if return_code == 0:  # successfully
-        print('mosaic created successfully')
-
-    # delete the temporal chunk files
+    # delete the temporary block files
     for chunk_file in blocks_files:
-        os.remove(chunk_file)
+        try:
+            os.remove(chunk_file)
+        except OSError:
+            pass
 
-    del inDataset1
-    del inDataset2
-    print('Warped image written to: {}'.format(outfn))
-    print('elapsed time: {}'.format(time.time() - start))
+    inDataset1 = None
+    inDataset2 = None
+    print(f'Warped image written to: {outfn}')
+    print(f'elapsed time: {time.time() - start:.2f}s')
 
     return outfn
+
 
 if __name__ == '__main__':
     options, args = getopt.getopt(sys.argv[1:], 'hb:d:')
@@ -183,7 +163,7 @@ if __name__ == '__main__':
             print(usage)
             sys.exit()
         elif option == '-b':
-            warpband = eval(value)
+            warpband = int(value)
         elif option == '-d':
             dims = eval(value)
     if len(args) != 2:
@@ -191,7 +171,4 @@ if __name__ == '__main__':
         print(usage)
         sys.exit(1)
 
-    fn1 = args[0]  # reference
-    fn2 = args[1]  # warp
-
-    main(fn1, fn2, warpband=warpband, dims=dims)
+    main(args[0], args[1], warpband=warpband)

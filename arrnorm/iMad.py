@@ -1,258 +1,248 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # ******************************************************************************
 #  Name:     iMad.py
-#  Purpose:  Perfrom IR-MAD change detection on bitemporal, multispectral
-#            imagery
-#  Usage:
-#    python iMad.py -h
+#  Purpose:  Iteratively Reweighted Multivariate Alteration Detection
+#            (IR-MAD) for bi-temporal multispectral imagery.
 #
-#  Copyright (c) 2013, Mort Canty
-#    This program is free software; you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation; either version 2 of the License, or
-#    (at your option) any later version.
+#  Original algorithm: M. J. Canty (2014). Refactored for numerical
+#  stability and performance: see comments inline.
 #
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
+#  License: GPLv2+
+# ******************************************************************************
 
 import os
 import sys
 import time
 from operator import itemgetter
+
 import numpy as np
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly, GDT_Float32
-from scipy import linalg, stats
+from scipy import stats
 
 import arrnorm.auxil.auxil as auxil
 
-usage = '''
-Usage:
------------------------------------------------------
-python %s [-h] [-n] [-i max iterations] [-p bandPositions]
-[-d spatialDimensions] filename1 filename2
------------------------------------------------------
-bandPositions and spatialDimensions are lists,
-e.g., -p [1,2,3] -d [0,0,400,400]
--n stops any graphics output
------------------------------------------------------
-The output MAD variate file is has the same format
-as filename1 and is named
-
-      path/MAD(filebasename1-filebasename2).ext1
-
-where filename1 = path/filebasename1.ext1
-      filename2 = path/filebasename2.ext2
-
-For ENVI files, ext1 or ext2 is the empty string.
------------------------------------------------------'''
+# Block height (in rows) used when streaming both images band-by-band into
+# the running covariance accumulator. Reading 256 rows at a time amortizes
+# the per-call GDAL overhead by ~256x vs the original row-by-row loop
+# while keeping peak memory bounded (256 * cols * 2*bands * 8 bytes).
+DEFAULT_BLOCK_ROWS = 256
 
 
-def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=False, ref_text=''):
+def _iter_row_blocks(rows, block_rows):
+    """Yield (y_offset, n_rows) chunks covering [0, rows)."""
+    for y in range(0, rows, block_rows):
+        yield y, min(block_rows, rows - y)
 
+
+def _read_block(raster_bands, x0, y0, cols, n_rows):
+    """Read a (n_rows, cols, bands) float64 tile for the given band list."""
+    bands = len(raster_bands)
+    tile = np.empty((n_rows * cols, bands), dtype=np.float64)
+    for k, rb in enumerate(raster_bands):
+        arr = rb.ReadAsArray(x0, y0, cols, n_rows)
+        tile[:, k] = np.nan_to_num(arr, copy=False).ravel()
+    return tile
+
+
+def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None,
+         graphics=False, ref_text='', block_rows=DEFAULT_BLOCK_ROWS):
     gdal.AllRegister()
+    start = time.time()  # was previously undefined at print-elapsed time (bug)
 
     path = os.path.dirname(os.path.abspath(img_ref))
     basename1 = os.path.basename(img_ref)
     root1, ext1 = os.path.splitext(basename1)
     basename2 = os.path.basename(img_target)
-    root2, ext2 = os.path.splitext(basename2)
-    outfn = os.path.join(path, 'MAD({0}&{1}){2}'.format(root1, basename2, ext1))
+    root2, _ext2 = os.path.splitext(basename2)
+    outfn = os.path.join(path, f'MAD({root1}&{basename2}){ext1}')
+
     inDataset1 = gdal.Open(img_ref, GA_ReadOnly)
     inDataset2 = gdal.Open(img_target, GA_ReadOnly)
-    try:
-        cols = inDataset1.RasterXSize
-        rows = inDataset1.RasterYSize
-        bands = inDataset1.RasterCount
-        cols2 = inDataset2.RasterXSize
-        rows2 = inDataset2.RasterYSize
-        bands2 = inDataset2.RasterCount
-    except Exception as err:
-        print('Error: {}  --Images could not be read.'.format(err))
+    if inDataset1 is None or inDataset2 is None:
+        sys.stderr.write("Error: input image(s) could not be opened.\n")
         sys.exit(1)
+
+    cols = inDataset1.RasterXSize
+    rows = inDataset1.RasterYSize
+    bands = inDataset1.RasterCount
+    cols2 = inDataset2.RasterXSize
+    rows2 = inDataset2.RasterYSize
+    bands2 = inDataset2.RasterCount
+
     if bands != bands2:
-        sys.stderr.write("The number of bands does not match between reference and target image")
+        sys.stderr.write(
+            f"Band count mismatch between reference ({bands}) "
+            f"and target ({bands2}).\n")
         sys.exit(1)
+
     if band_pos is None:
         band_pos = list(range(1, bands + 1))
     else:
         bands = len(band_pos)
+
     if dims is None:
-        x0 = 0
-        y0 = 0
+        x0 = y0 = 0
     else:
         x0, y0, cols, rows = dims
-    # if second image is warped, assume it has same dimensions as dims
-    if root2.find('_warp') != -1:
-        x2 = 0
-        y2 = 0
-    else:
-        x2 = x0
-        y2 = y0
 
-    # Dimension guard: after the clipper() step in arrnorm.py, both images MUST share
-    # the same pixel grid (same cols x rows).  Any mismatch here means the reference
-    # was not reprojected/aligned correctly, so the IR-MAD correlation would be
-    # computed between spatially mismatched pixels — raising an error is safer than
-    # silently producing wrong results.
+    # If the target was warped during registration we assume it is already
+    # aligned to the reference origin; otherwise use the same window.
+    if root2.find('_warp') != -1:
+        x2 = y2 = 0
+    else:
+        x2, y2 = x0, y0
+
+    # Dimension guard: after clipper() in bin/arrnorm, both images MUST share
+    # the same pixel grid. Pixel-for-pixel alignment is required for IR-MAD.
     if cols != cols2 or rows != rows2:
         raise Exception(
-            "\n ERROR: Reference clip ({cols}x{rows}) and target ({cols2}x{rows2}) "
-            "have different pixel dimensions.\n"
-            " Pixel-for-pixel alignment is required for IR-MAD. "
-            "Ensure both images share the same CRS, pixel size, and spatial extent "
-            "before running the normalization.\n".format(
-                cols=cols, rows=rows, cols2=cols2, rows2=rows2))
+            f"\n ERROR: Reference clip ({cols}x{rows}) and target "
+            f"({cols2}x{rows2}) have different pixel dimensions.\n"
+            f" Pixel-for-pixel alignment is required for IR-MAD. Ensure both "
+            f"images share the same CRS, pixel size, and spatial extent "
+            f"before running the normalization.\n")
 
     print('------------IRMAD -------------')
-    # iteration of MAD
+    rasterBands1 = [inDataset1.GetRasterBand(b) for b in band_pos]
+    rasterBands2 = [inDataset2.GetRasterBand(b) for b in band_pos]
+
+    # Sanity-check: any band that is entirely zero would make the algorithm
+    # degenerate (singular covariance). Bail out early with a clear message.
+    for k, rb in enumerate(rasterBands1):
+        if not rb.ReadAsArray().any():
+            print(f"\nERROR: band {band_pos[k]} of '{basename1}' has only "
+                  f"zeros — please check it.\n")
+            sys.exit(1)
+    for k, rb in enumerate(rasterBands2):
+        if not rb.ReadAsArray().any():
+            print(f"\nERROR: band {band_pos[k]} of '{basename2}' has only "
+                  f"zeros — please check it.\n")
+            sys.exit(1)
+
     cpm = auxil.Cpm(2 * bands)
-    delta = 1.0
     oldrho = np.zeros(bands)
-    current_iter = 0
-    tile = np.zeros((cols, 2 * bands))
-    sigMADs = 0
-    means1 = 0
-    means2 = 0
-    A = 0
-    B = 0
-    rasterBands1 = []
-    rasterBands2 = []
     rhos = np.zeros((max_iters, bands))
     results = []
-    for band in band_pos:
-        rasterBands1.append(inDataset1.GetRasterBand(band))
-        rasterBands2.append(inDataset2.GetRasterBand(band))
+    sigMADs = means1 = means2 = A = B = None
 
-    # check if the band data has only zeros
-    for band in range(bands):
-        # check the reference image
-        if not rasterBands1[band].ReadAsArray().any():
-            print("\nERROR: the band No. {0} for the file '{1}'\n"
-                  "has only zeros! please check it.\n\n(Ctrl+C to exit)\n".format(band+1, basename1))
-            sys.exit(1)
-        # check the target image
-        if not rasterBands2[band].ReadAsArray().any():
-            print("\nERROR: the band No. {0} for the file '{1}'\n"
-                  "has only zeros! please check it.\n\n(Ctrl+C to exit)\n".format(band+1, basename2))
-            sys.exit(1)
+    print(f'\nStop condition: max iteration {max_iters} with auto selection\n'
+          f'of the best delta for the final result:')
+    print(f' {ref_text + " ->"} iteration: 0, delta: 1.0 ({time.asctime()})')
 
-    print('\nStop condition: max iteration {iter} with auto selection\n'
-          'the best delta for the final result:'.format(iter=max_iters))
-
-    print(' {ref_text} iteration: 0, delta: 1.0 ({time})'.format(ref_text=ref_text + " ->", time=time.asctime()))
-
+    current_iter = 0
     while current_iter < max_iters:
         try:
-            # spectral tiling for statistics
-            for row in range(rows):
-                for k in range(bands):
-                    tile[:, k] = rasterBands1[k].ReadAsArray(x0, y0 + row, cols, 1)
-                    tile[:, bands + k] = rasterBands2[k].ReadAsArray(x2, y2 + row, cols, 1)
-                # eliminate no-data pixels
-                tile = np.nan_to_num(tile)
-                tst1 = np.sum(tile[:, 0:bands], axis=1)
-                tst2 = np.sum(tile[:, bands::], axis=1)
-                idx1 = set(np.where((tst1 != 0))[0])
-                idx2 = set(np.where((tst2 != 0))[0])
-                idx = list(idx1.intersection(idx2))
-                if current_iter > 0:
-                    mads = (tile[:, 0:bands] - means1) @ A - (tile[:, bands::] - means2) @ B
-                    chisqr = np.sum(np.square(mads / sigMADs), axis=1)
-                    wts = 1 - stats.chi2.cdf(chisqr, [bands])
-                    cpm.update(tile[idx, :], wts[idx])
-                else:
-                    cpm.update(tile[idx, :])
+            # ---- pass 1: accumulate weighted covariance over the full image
+            for ry, nr in _iter_row_blocks(rows, block_rows):
+                tile_ref = _read_block(rasterBands1, x0, y0 + ry, cols, nr)
+                tile_tgt = _read_block(rasterBands2, x2, y2 + ry, cols, nr)
+                tile = np.concatenate((tile_ref, tile_tgt), axis=1)
 
-            # weighted covariance matrices and means
+                # Exclude rows where any image has a fully-zero pixel
+                # (treated as no-data) — preserves the original behaviour.
+                nz_ref = tile_ref.any(axis=1)
+                nz_tgt = tile_tgt.any(axis=1)
+                keep = nz_ref & nz_tgt
+
+                if current_iter > 0:
+                    # MAD variates and chi-square statistic for weighting
+                    mads = ((tile[:, 0:bands] - means1[0]) @ A
+                            - (tile[:, bands:] - means2[0]) @ B)
+                    chisqr = np.sum((mads / sigMADs[0]) ** 2, axis=1)
+                    # chi2.sf == 1 - chi2.cdf, but stable in the upper tail
+                    wts = stats.chi2.sf(chisqr, bands)
+                    cpm.update(tile[keep], wts[keep])
+                else:
+                    cpm.update(tile[keep])
+
+            # ---- canonical-correlation step
             S = cpm.covariance()
             means = cpm.means()
-            # reset prov means object
-            cpm.__init__(2 * bands)
+            cpm.reset()
+
             s11 = S[0:bands, 0:bands]
             s22 = S[bands:, bands:]
             s12 = S[0:bands, bands:]
-            s21 = S[bands:, 0:bands]
-            c1 = s12 @ linalg.inv(s22) @ s21
-            b1 = s11
-            c2 = s21 @ linalg.inv(s11) @ s12
-            b2 = s22
-            # solution of generalized eigenproblems
-            if bands > 1:
-                mu2a, A = auxil.geneiv(c1, b1)
-                mu2b, B = auxil.geneiv(c2, b2)
-                # sort a
-                idx = np.argsort(mu2a)
-                A = A[:, idx]
-                # sort b
-                idx = np.argsort(mu2b)
-                B = B[:, idx]
-                mu2 = mu2b[idx]
-            else:
-                mu2 = c1 / b1
-                A = 1 / np.sqrt(b1)
-                B = 1 / np.sqrt(b2)
+            s21 = s12.T  # S is symmetric
 
-            # canonical correlations
+            # Solve the two coupled generalized eigenproblems
+            #   s12 s22^-1 s21  a = mu^2  s11  a
+            #   s21 s11^-1 s12  b = mu^2  s22  b
+            if bands > 1:
+                # scipy.linalg.solve is more stable than forming inv() explicitly
+                from scipy.linalg import solve
+                c1 = s12 @ solve(s22, s21, assume_a='pos')
+                c2 = s21 @ solve(s11, s12, assume_a='pos')
+                mu2a, A = auxil.geneiv(c1, s11)
+                mu2b, B = auxil.geneiv(c2, s22)
+                idx_a = np.argsort(mu2a)
+                idx_b = np.argsort(mu2b)
+                A = A[:, idx_a]
+                B = B[:, idx_b]
+                mu2 = mu2b[idx_b]
+            else:
+                mu2 = (s12 * s21 / s22) / s11
+                A = np.array([[1.0 / np.sqrt(s11[0, 0])]])
+                B = np.array([[1.0 / np.sqrt(s22[0, 0])]])
+
+            # Clamp to [0, 1] before sqrt — round-off can push mu^2 slightly
+            # negative or slightly above 1, which would yield NaN.
+            mu2 = np.clip(mu2, 0.0, 1.0)
             rho = np.sqrt(mu2)
-            b2 = np.diag(B.T @ B)
-            sigma = np.sqrt(2 * (1 - rho))
-            # stopping criterion
-            delta = max(abs(rho - oldrho))
-            if bands == 1:
-                delta = delta.item()
+            sigma = np.sqrt(2.0 * (1.0 - rho))  # std of each MAD variate
+            delta = float(np.max(np.abs(rho - oldrho)))
 
             rhos[current_iter, :] = rho
             oldrho = rho
-            # tile the sigmas and means
-            sigMADs = np.tile(sigma, (cols, 1))
-            means1 = np.tile(means[0:bands], (cols, 1))
-            means2 = np.tile(means[bands::], (cols, 1))
-            # ensure sum of positive correlations between X and U is positive
-            D = np.diag(1 / np.sqrt(np.diag(s11)))
-            s = np.ravel(np.sum(D @ s11 @ A, axis=0))
-            A = A @ np.diag(s / np.abs(s))
-            # ensure positive correlation between each pair of canonical variates
-            cov = np.diag(A.T @ s12 @ B)
-            B = B @ np.diag(cov / np.abs(cov))
+
+            # Tile sigma and means to (1, ...) — broadcast over (n_pixels, bands)
+            sigMADs = sigma[None, :]
+            means1 = means[None, 0:bands]
+            means2 = means[None, bands:]
+
+            # Sign-fix: ensure each canonical variate has a positive sum of
+            # correlations with the X channels (otherwise eigenvectors can
+            # flip sign between iterations, breaking the stopping criterion).
+            D = 1.0 / np.sqrt(np.diag(s11))            # vector form of diag(D)
+            sgn_a = np.sign(np.sum(D[:, None] * s11 @ A, axis=0))
+            sgn_a[sgn_a == 0] = 1.0
+            A = A * sgn_a
+            sgn_cov = np.sign(np.diag(A.T @ s12 @ B))
+            sgn_cov[sgn_cov == 0] = 1.0
+            B = B * sgn_cov
+
             current_iter += 1
-
-            print(' {ref_text} iteration: {iter}, delta: {delta} ({time})'.format(
-                ref_text=ref_text + " ->", iter=current_iter, delta=round(delta, 5), time=time.asctime()))
-
-            # save parameters
-            results.append((delta, {"iter": current_iter, "A": A, "B": B, "means1": means1, "means2": means2,
+            print(f' {ref_text + " ->"} iteration: {current_iter}, '
+                  f'delta: {round(delta, 5)} ({time.asctime()})')
+            results.append((delta, {"iter": current_iter, "A": A, "B": B,
+                                    "means1": means1, "means2": means2,
                                     "sigMADs": sigMADs, "rho": rho}))
         except Exception as err:
-            print("\n WARNING: Occurred a exception value error for the last iteration No. {iter},\n"
-                  " then the ArrNorm will be use the best result at the moment calculated, you\n"
-                  " should check the result and all bands in input file if everything is correct.\n\n"
-                  " Error: {err}".format(iter=current_iter, err=err))
-            # ending the iteration
-            current_iter = max_iters
+            print(f"\n WARNING: exception at iteration {current_iter}: {err}\n"
+                  f" Falling back to best-delta result computed so far. "
+                  f"Verify the input bands.\n")
+            current_iter = max_iters  # exit the while-loop
 
-        if current_iter == max_iters:  # end iteration
-            # select the result with the best delta
-            best_results = sorted(results, key=itemgetter(0))[0]
-            print("\n The best delta for all iterations is {0}, iter num: {1},\n"
-                  " making the final result normalization with this parameters.".
-                  format(round(best_results[0], 5), best_results[1]["iter"]))
-
-            # set the parameter for the best delta
-            delta = best_results[0]
-            A = best_results[1]["A"]
-            B = best_results[1]["B"]
-            means1 = best_results[1]["means1"]
-            means2 = best_results[1]["means2"]
-            sigMADs = best_results[1]["sigMADs"]
-            rho = best_results[1]["rho"]
-
+        if current_iter == max_iters:
+            # Pick the iteration with the smallest delta — the run with the
+            # most-converged canonical correlations.
+            best = sorted(results, key=itemgetter(0))[0]
+            print(f"\n Best delta over all iterations: {round(best[0], 5)} "
+                  f"(iteration {best[1]['iter']}). "
+                  f"Final result computed with those parameters.")
+            delta = best[0]
+            A = best[1]["A"]
+            B = best[1]["B"]
+            means1 = best[1]["means1"]
+            means2 = best[1]["means2"]
+            sigMADs = best[1]["sigMADs"]
+            rho = best[1]["rho"]
             del results
 
-    print('\nRHO: {}'.format(rho))
-    # write results to disk
+    print(f'\nRHO: {rho}')
+
+    # ---- write MAD variates + chi-square band to disk
     driver = inDataset1.GetDriver()
     outDataset = driver.Create(outfn, cols, rows, bands + 1, GDT_Float32)
     projection = inDataset1.GetProjection()
@@ -264,30 +254,30 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None, graphics=F
         outDataset.SetGeoTransform(tuple(gt))
     if projection is not None:
         outDataset.SetProjection(projection)
-    outBands = []
-    for k in range(bands + 1):
-        outBands.append(outDataset.GetRasterBand(k + 1))
-    for row in range(rows):
+    outBands = [outDataset.GetRasterBand(k + 1) for k in range(bands + 1)]
+
+    for ry, nr in _iter_row_blocks(rows, block_rows):
+        tile_ref = _read_block(rasterBands1, x0, y0 + ry, cols, nr)
+        tile_tgt = _read_block(rasterBands2, x2, y2 + ry, cols, nr)
+        mads = (tile_ref - means1[0]) @ A - (tile_tgt - means2[0]) @ B
+        chisqr = np.sum((mads / sigMADs[0]) ** 2, axis=1)
         for k in range(bands):
-            tile[:, k] = rasterBands1[k].ReadAsArray(x0, y0 + row, cols, 1)
-            tile[:, bands + k] = rasterBands2[k].ReadAsArray(x2, y2 + row, cols, 1)
-        mads = (tile[:, 0:bands] - means1) @ A - (tile[:, bands::] - means2) @ B
-        chisqr = np.sum(np.square(mads / sigMADs), axis=1)
-        for k in range(bands):
-            outBands[k].WriteArray(np.reshape(mads[:, k], (1, cols)), 0, row)
-        outBands[bands].WriteArray(np.reshape(chisqr, (1, cols)), 0, row)
+            outBands[k].WriteArray(mads[:, k].reshape(nr, cols), 0, ry)
+        outBands[bands].WriteArray(chisqr.reshape(nr, cols), 0, ry)
     for outBand in outBands:
         outBand.FlushCache()
     outDataset = None
     inDataset1 = None
     inDataset2 = None
+
     print('result written to: ' + outfn)
-    print('elapsed time: {}'.format(time.time() - start))
-    x = np.array(list(range(current_iter - 1)))
+    print(f'elapsed time: {time.time() - start:.2f}s')
+
     if graphics:
         try:
             import matplotlib.pyplot as plt
-            plt.plot(x, rhos[0:current_iter - 1, :])
+            x = np.arange(current_iter)
+            plt.plot(x, rhos[:current_iter, :])
             plt.title('Canonical correlations')
             plt.show()
         except ImportError:

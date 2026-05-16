@@ -66,22 +66,16 @@ class Normalization:
 
     def run(self):
 
-        print("\nPROCESSING IMAGE: {target} ({count})".format(
-            target=os.path.basename(self.img_target),
-            count=str(self.count + 1)
-        ))
+        print(f"\nPROCESSING IMAGE: {os.path.basename(self.img_target)} ({self.count + 1})")
 
         self.clipper()
 
         if self.reg:
             self.register()
-            #self.no_negative_value(self.img_target_reg)
 
             if self.onlyreg:
-                print('\nDONE: {ref_text} PROCESSED\n'
-                      '      register successfully for:  {img_orig}\n'.format(
-                        ref_text=self.ref_text,
-                        img_orig=os.path.basename(self.img_target)))
+                print(f'\nDONE: {self.ref_text} PROCESSED\n'
+                      f'      register successfully for:  {os.path.basename(self.img_target)}\n')
                 return
 
         self.imad()
@@ -95,12 +89,9 @@ class Normalization:
 
         self.clean()
 
-        print('\nDONE: {ref_text} PROCESSED\n'
-              '      ArrNorm successfully for:  {img_orig}\n'
-              '      image normalized saved in: {img_norm}\n'.format(
-                ref_text=self.ref_text,
-                img_orig=os.path.basename(self.img_target),
-                img_norm=os.path.basename(self.img_norm)))
+        print(f'\nDONE: {self.ref_text} PROCESSED\n'
+              f'      ArrNorm successfully for:  {os.path.basename(self.img_target)}\n'
+              f'      image normalized saved in: {os.path.basename(self.img_norm)}\n')
 
     def clipper(self):
         """Clip the reference image with the target image"""
@@ -122,11 +113,12 @@ class Normalization:
                                          + "_clip" + ext)
 
         try:
-            gdal.Translate(self.img_ref_clip, self.img_ref, projWin=[minx, maxy, maxx, miny], format='GTiff')
-            print('Clipped ref image successfully: ' + os.path.basename(self.img_ref_clip))
+            gdal.Translate(self.img_ref_clip, self.img_ref,
+                           projWin=[minx, maxy, maxx, miny], format='GTiff')
+            print(f'Clipped ref image successfully: {os.path.basename(self.img_ref_clip)}')
         except Exception as e:
             self.clean()
-            print('\nError clipping reference image: ' + str(e))
+            print(f'\nError clipping reference image: {e}')
             sys.exit(1)
 
     def imad(self):
@@ -272,8 +264,8 @@ if __name__ == '__main__':
                "IDEAM, Colombia",
         formatter_class=argparse.RawTextHelpFormatter)
 
-    arguments.add_argument('-ref', type=str, default="/home/smbyc/cona3/Imagenes/Landsat/Average_25_75/AV2575_C2_2000_2021_v1.tif",
-                           help='reference image for iMad normalize', required=False)
+    arguments.add_argument('-ref', type=str,
+                           help='reference image for iMad normalize', required=True)
     arguments.add_argument('-i', type=int, default=30,
                            help='number of iterations', required=False)
     arguments.add_argument('-t', type=float, default=0.95,
@@ -307,17 +299,16 @@ if __name__ == '__main__':
     # number of threads
     number_of_processes = arg.p
 
-    print('Reference image: ', os.path.basename(arg.ref))
-    print('Creating {num_proc} multiprocesses'.format(num_proc=number_of_processes))
-
+    print(f'Reference image: {os.path.basename(arg.ref)}')
+    print(f'Creating {number_of_processes} multiprocesses')
 
     with multiprocessing.Pool(number_of_processes) as pool:
-
-        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t, arg.reg, arg.onlyreg, arg.noneg, arg.m, arg.warpband, arg.chunksize))
+        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t,
+                                  arg.reg, arg.onlyreg, arg.noneg, arg.m,
+                                  arg.warpband, arg.chunksize))
                  for img_count, img_target in enumerate(arg.images)]
+        # Consume the iterator to actually run the jobs
+        for _ in pool.imap(meta_process, TASKS):
+            pass
 
-        imap_it = pool.imap(meta_process, TASKS)
-
-        [proc for proc in imap_it]
-
-    print('\nFINISH: successfully process for {num_img} images\n'.format(num_img=len(arg.images)))
+    print(f'\nFINISH: successfully process for {len(arg.images)} images\n')
