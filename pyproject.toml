@@ -62,3 +62,12 @@ version = {attr = "core.__version__"}
 # Only package the core/ library; arrnorm.py (the CLI) is installed as a
 # console_scripts entry point, not as a package.
 include = ["core*"]
+
+# ---------------------------------------------------------------------------
+# Pytest configuration
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v"
