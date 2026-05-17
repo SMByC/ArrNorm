@@ -1,60 +1,123 @@
 # ArrNorm
 
-ArrNorm is a command line program for apply the radiometric normalization to the target image based on reference image using the IR-MAD algorithm to locate invariant/variant pixels for a relative radiometric normalization.
+ArrNorm is a command-line tool for relative radiometric normalization of multispectral remote sensing imagery. Given a reference image and one or more target images acquired over the same area at different dates, it produces normalized outputs whose reflectance values are statistically consistent with the reference — compensating for differences caused by sensor angle, sun position, atmospheric conditions, and seasonal variation.
 
-The algorithm takes advantage of the linear and affine invariance of the Multivariate alteration detection (MAD)
-transformation to perform a relative radiometric normalization of the images involved in the transformation, using the correlation of the iteratively reweighted MAD (IR-MAD) [1]
+Normalization relies on the **IR-MAD** algorithm (Iteratively Reweighted Multivariate Alteration Detection) to automatically identify *no-change* pixels shared by both images and use them to calibrate a per-band linear transform. [[1]](#references)
 
-Stop condition is set by max iteration or with a minimum no-change probability threshold. With more iterations the algorithm try to find a better match to the reference image, decreasing the delta, the plugin select the best delta for the final result. However, after several iterations the changes in the delta are imperceptible.
+## Algorithm overview
 
-[1] M. J. Canty (2014): Image Analysis, Classification and Change Detection in Remote Sensing, with Algorithms for ENVI/IDL and Python (Third Revised Edition), Taylor and Francis CRC Press.
+The pipeline has three main stages:
+
+### 1. Alignment
+
+Before any statistics are computed the reference image is reprojected and resampled onto the target's exact pixel grid (same CRS, same spatial extent, same number of pixels) using `gdal.Warp` with bilinear resampling. This guarantees pixel-for-pixel spatial coincidence, which is a hard requirement for the IR-MAD covariance computations. If the two images already share an identical grid the step is skipped.
+
+### 2. IR-MAD — invariant pixel detection
+
+The Multivariate Alteration Detection (MAD) transformation finds *K* pairs of linear combinations of the spectral bands — the **MAD variates** — such that each pair is maximally different between the two dates. For *K* bands the *i*-th MAD variate is:
+
+```
+MAD_i = a_i^T · X  −  b_i^T · Y
+```
+
+where **X** and **Y** are the reference and target band vectors, and the coefficient vectors **a** and **b** are the solutions of a pair of coupled generalized eigenproblems involving the between-date cross-covariance matrix. The corresponding **canonical correlation** ρᵢ measures how similar the two images are in that combination of bands: ρᵢ → 1 means no change, ρᵢ → 0 means complete change. The variance of each MAD variate is 2(1 − ρᵢ).
+
+Under the null hypothesis of *no change*, the standardized MAD variates
+
+```
+χ² = Σ_i  (MAD_i / √(2(1 − ρᵢ)))²
+```
+
+follow a chi-squared distribution with *K* degrees of freedom. The **no-change probability** NCP = P(χ² ≥ observed) is then used as a pixel weight for the next iteration: stable pixels get weight ≈ 1, changed pixels get weight ≈ 0.
+
+The **iterative reweighting** loop drives the covariance statistics toward being estimated entirely from invariant ground, progressively suppressing changed pixels. Convergence is measured by Δ = max|ρ_new − ρ_old|. The algorithm runs for up to `-i` iterations and keeps the result with the smallest Δ as the final parameter set.
+
+### 3. RadCal — radiometric calibration
+
+Using the no-change pixels identified by IR-MAD (those with NCP > threshold `-t`), ArrNorm fits a per-band **orthogonal (total-least-squares) regression** of target onto reference:
+
+```
+Y_normalized = a + b · Y_target
+```
+
+Orthogonal regression is used because both images contain measurement noise, so minimizing residuals in both directions gives a more accurate calibration line than ordinary least squares. The coefficients are applied to the full target image to produce the normalized output.
 
 ![](example.jpg)
 
-<figcaption>Fig.1 - Example of a Landsat image normalization, using a multi-year average (reference) to normalize a scene. Those pixel changes are because, some remote sensing imagery pixel values are affected by different causes such as: sensor angle, sun position, clouds and seasons. Be sure that you are using the same 'style' for all layers in Qgis (use copy/paste style for that) to visualize and check the normalization visually.</figcaption>
+*Fig. 1 — Example of a Landsat image normalization using a multi-year average as reference. Pixel values are affected by sensor angle, sun position, atmospheric conditions, and seasonal variation; ArrNorm compensates for all of these. Use the same display style (copy/paste style in QGIS) across all layers when comparing before and after.*
 
----
-
-> Check the [ArrNorm-Qgis-processing](https://github.com/SMByC/ArrNorm-Qgis-processing) implementation of Arrnorm as a Qgis processing.
+> See also the [ArrNorm-Qgis-processing](https://github.com/SMByC/ArrNorm-Qgis-processing) plugin, which exposes ArrNorm as a QGIS Processing algorithm.
 
 ## Installation
 
-For example with Anaconda/Conda environment:
+Using a Conda environment (recommended):
 
 ```bash
 conda install -c conda-forge gdal numpy scipy matplotlib
 pip install https://github.com/SMByC/ArrNorm/archive/master.zip
 ```
 
-## Parameters
-
-* **-ref** *reference image*: The reference image to normalize the target image.
-* **-p** *number of threads*: Number of threads to process several files at the same time (default: 1).
-* **-i** *max iterations*: Maximum number of iterations (default: 10).
-* **-m** *create mask*: Create a mask file with the valid data (default: False).
-
-For other parameters check the help:
+## Usage
 
 ```bash
-$ arrnorm -h
+python arrnorm.py -ref reference.tif target.tif
 ```
 
-Examples:
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-ref FILE` | *(required)* | Reference image. Must overlap the target(s). |
+| `images` | *(required)* | One or more target images to normalize. |
+| `-i N` | `30` | Maximum number of IR-MAD iterations. |
+| `-t F` | `0.95` | No-change probability threshold. Pixels with NCP > t are used for regression. Higher values are more selective. |
+| `-p N` | all CPUs | Number of parallel processes (one per target image). |
+| `-m` | off | Create a binary validity mask alongside the normalized output. |
+| `-noneg` | off | Convert negative normalized values to NoData (0). Useful for reflectance outputs. |
+| `-reg` | off | Apply image-image registration in the frequency domain before normalization. |
+| `-warpband N` | `2` | Band index used for the registration step (requires `-reg`). |
+| `-chunksize N` | none | Process registration in spatial chunks of this size (requires `-reg`). Reduces memory use for large images. |
+| `-onlyreg` | off | Perform registration only; skip IR-MAD normalization (requires `-reg`). |
+
+### Examples
+
+Normalize a single target against a reference:
 
 ```bash
-$ arrnorm -ref reference.tif target.tif
+python arrnorm.py -ref reference.tif target.tif
 ```
+
+Normalize three targets in parallel with 15 iterations:
+
 ```bash
-$ arrnorm -i 15 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
+python arrnorm.py -i 15 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
 ```
 
-## About us
+Normalize with registration, mask, and no-negative clipping:
 
-ArrNorm was developing, designed and implemented by the Group of Forest and Carbon Monitoring System (SMByC), operated by the Institute of Hydrology, Meteorology and Environmental Studies (IDEAM) - Colombia.
+```bash
+python arrnorm.py -ref reference.tif -reg -m -noneg target.tif
+```
 
-Author and developer: *Xavier C. Llano* *<xavier.corredor.llano@gmail.com>*  
-Theoretical support, tester and product verification: SMByC-PDI group
+Full help:
+
+```bash
+python arrnorm.py -h
+```
+
+## References
+
+[1] M. J. Canty (2014): *Image Analysis, Classification and Change Detection in Remote Sensing, with Algorithms for ENVI/IDL and Python* (Third Revised Edition). Taylor & Francis / CRC Press.
+
+The IR-MAD algorithm and the radiometric normalization procedure implemented here are described in detail in Chapter 9 of that book. The iterative reweighting scheme, the use of the chi-squared no-change probability as pixel weights, and the orthogonal regression calibration all follow Canty's formulation directly.
+
+## About
+
+ArrNorm was designed and implemented by the Forest and Carbon Monitoring System group (SMByC), operated by the Institute of Hydrology, Meteorology and Environmental Studies (IDEAM) — Colombia.
+
+**Author and developer:** Xavier C. Llano <xavier.corredor.llano@gmail.com>  
+**Theoretical support, testing and product verification:** SMByC-PDI group
 
 ## License
 
-ArrNorm is a free/libre software and is licensed under the GNU General Public License.
+ArrNorm is free/libre software, licensed under the GNU General Public License v3 (GPLv3).

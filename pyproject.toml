@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arrnorm"
+dynamic = ["version"]
+description = "Automatic relative radiometric normalization using IR-MAD"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Xavier C. Llano", email = "xavier.corredor.llano@gmail.com"},
+]
+keywords = [
+    "remote sensing",
+    "radiometric normalization",
+    "IR-MAD",
+    "change detection",
+    "GIS",
+    "Landsat",
+]
+classifiers = [
+    "Topic :: Scientific/Engineering :: GIS",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Environment :: Console",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+# gdal is intentionally listed without a version pin: the correct GDAL Python
+# bindings version must match the system GDAL library and is best managed
+# through conda/system packages rather than pip.
+dependencies = [
+    "gdal",
+    "numpy>=1.20",
+    "scipy>=1.5",
+    "matplotlib",
+]
+
+[project.urls]
+Homepage   = "https://github.com/SMByC/ArrNorm"
+Repository = "https://github.com/SMByC/ArrNorm"
+"Bug Tracker" = "https://github.com/SMByC/ArrNorm/issues"
+
+[project.scripts]
+arrnorm = "arrnorm:main"
+
+# ---------------------------------------------------------------------------
+# Setuptools configuration
+# ---------------------------------------------------------------------------
+
+[tool.setuptools.dynamic]
+version = {attr = "core.__version__"}
+
+[tool.setuptools.packages.find]
+# Only package the core/ library; arrnorm.py (the CLI) is installed as a
+# console_scripts entry point, not as a package.
+include = ["core*"]

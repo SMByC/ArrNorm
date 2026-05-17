@@ -271,7 +271,7 @@ def meta_process(args):
     process(*args)
 
 
-if __name__ == '__main__':
+def main():
     multiprocessing.freeze_support()
 
     arguments = argparse.ArgumentParser(
@@ -324,3 +324,7 @@ if __name__ == '__main__':
             pass
 
     print(f'\nFINISH: successfully process for {len(arg.images)} images\n')
+
+
+if __name__ == '__main__':
+    main()
