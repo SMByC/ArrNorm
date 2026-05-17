@@ -45,7 +45,6 @@ class Normalization:
         self.reg = reg
         self.onlyreg = onlyreg
         self.noneg = noneg
-        self.mask = mask
         self.warpband = warpband
         self.chunksize = chunksize
         self.graphics = graphics
@@ -61,9 +60,20 @@ class Normalization:
 
         target_ds = gdal.Open(self.img_target, GA_ReadOnly)
         target_dtype_code = target_ds.GetRasterBand(1).DataType
+        target_nodata = target_ds.GetRasterBand(1).GetNoDataValue()
         target_ds = None
 
         self.out_dtype = max(ref_dtype_code, target_dtype_code)
+
+        # Resolve mask nodata: explicit value > image nodata > 0
+        self.mask = (mask is not False)
+        if self.mask:
+            if isinstance(mask, float):
+                self.mask_nodata = mask
+            else:
+                self.mask_nodata = target_nodata if target_nodata is not None else 0
+        else:
+            self.mask_nodata = 0
 
     def run(self):
         print(f"\nPROCESSING IMAGE: {os.path.basename(self.img_target)} ({self.count + 1})")
@@ -222,7 +232,7 @@ class Normalization:
             filename + "_mask" + ext)
         try:
             gdal_calc(A=img_to_process, outfile=self.mask_file, type=gdal.GDT_Byte,
-                      calc="1*(A>0)", overwrite=True, quiet=True,
+                      calc=f"1*(A!={self.mask_nodata})", overwrite=True, quiet=True,
                       creation_options=["COMPRESS=PACKBITS", "NBITS=1"])
             colors = gdal.ColorTable()
             colors.SetColorEntry(0, (0, 0, 0, 255))
@@ -242,7 +252,7 @@ class Normalization:
         tmp_img_norm = self.img_norm.replace('.tif', '_tmp.tif')
         try:
             gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm,
-                      calc="A*(B==1)", NoDataValue=0, allBands="A",
+                      calc="A*(B==1)", NoDataValue=self.mask_nodata, allBands="A",
                       overwrite=True, quiet=True, creation_options=["BIGTIFF=YES"])
             os.remove(self.img_norm)
             os.rename(tmp_img_norm, self.img_norm)
@@ -291,8 +301,10 @@ def main():
                            help='no-change probability threshold', required=False)
     arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count(),
                            help='number of process/threads', required=False)
-    arguments.add_argument('-m', action='store_true', default=False,
-                           help='create and apply nodata mask', required=False)
+    arguments.add_argument('-m', nargs='?', const=None, default=False, type=float,
+                           help='create and apply a validity mask; optionally provide the nodata\n'
+                                'value (e.g. -m 255). Default: image nodata if defined, else 0.',
+                           required=False)
     arguments.add_argument('-reg', action='store_true', default=False,
                            help='registration image-image in frequency domain', required=False)
     arguments.add_argument('-noneg', action='store_true', default=False,

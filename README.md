@@ -72,7 +72,7 @@ python arrnorm.py -ref reference.tif target.tif
 | `-i N` | `30` | Maximum number of IR-MAD iterations. |
 | `-t F` | `0.95` | No-change probability threshold. Pixels with NCP > t are used for regression. Higher values are more selective. |
 | `-p N` | all CPUs | Number of parallel processes (one per target image). |
-| `-m` | off | Create a binary validity mask alongside the normalized output. |
+| `-m [VALUE]` | off | Create a binary validity mask alongside the normalized output. Optionally specify the nodata value (e.g. `-m 255`); default is the image's own nodata value, or 0 if none is defined. |
 | `-noneg` | off | Convert negative normalized values to NoData (0). Useful for reflectance outputs. |
 | `-reg` | off | Apply image-image registration in the frequency domain before normalization. |
 | `-warpband N` | `2` | Band index used for the registration step (requires `-reg`). |
