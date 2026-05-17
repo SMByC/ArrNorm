@@ -20,7 +20,7 @@ from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly, GDT_Float32
 from scipy import stats
 
-import arrnorm.auxil.auxil as auxil
+import core.auxil.auxil as auxil
 
 # Block height (in rows) used when streaming both images band-by-band into
 # the running covariance accumulator. Reading 256 rows at a time amortizes

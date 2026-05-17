@@ -25,7 +25,7 @@ import scipy.ndimage as ndii
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
 
-from arrnorm.auxil.auxil import similarity
+from core.auxil.auxil import similarity
 
 usage = '''
 Usage:

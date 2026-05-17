@@ -14,7 +14,7 @@ project_dir = os.path.dirname(os.path.realpath(__file__))
 if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
 
-from arrnorm import iMad, radcal, register
+from core import iMad, radcal, register
 
 header = '''
 ==============================================================
