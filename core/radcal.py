@@ -27,6 +27,17 @@ from scipy import stats
 
 from core.auxil.auxil import orthoregress
 
+try:
+    import matplotlib
+    # 'Agg' is a non-interactive backend — required for safe use from
+    # multiprocessing workers and for headless servers. Must be set before
+    # importing pyplot.
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    _MPL_AVAILABLE = True
+except ImportError:
+    _MPL_AVAILABLE = False
+
 usage = '''
 Usage:
 --------------------------------------------------------
@@ -133,29 +144,99 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None,
 
     aa = []
     bb = []
-    if graphics:
-        try:
-            import matplotlib.pyplot as plt
-            plt.figure(1, (9, 6))
-        except ImportError:
-            graphics = False
+    if graphics and not _MPL_AVAILABLE:
+        print('Warning: matplotlib not available — graphics output disabled.')
+        graphics = False
 
     bands = len(pos)
+    fig = None
+    plot_nrows = plot_ncols = 0
+    if graphics:
+        # Lay out band scatters in a grid of at most 3 cols × 2 rows = 6 panels.
+        plot_ncols = min(bands, 3)
+        plot_nrows = 2 if bands > 3 else 1
+        n_total = cols * rows
+        n_nochange = len(idx[0])
+        pct_nochange = 100.0 * n_nochange / n_total if n_total else 0.0
+        fig, axes = plt.subplots(
+            nrows=plot_nrows,
+            ncols=plot_ncols,
+            figsize=(4.2 * plot_ncols, 4.2 * plot_nrows),
+            squeeze=False,
+        )
+        fig.suptitle(
+            f'RadCal: per-band orthogonal regression on IR-MAD no-change pixels\n'
+            f'target: {os.path.basename(targetfn)}   '
+            f'reference: {os.path.basename(referencefn)}\n'
+            f'no-change pixels: {n_nochange:,} / {n_total:,} '
+            f'({pct_nochange:.2f}%)   '
+            f'NCP threshold: {ncpThresh}',
+            fontsize=10,
+        )
+
     for j, k in enumerate(pos, start=1):
         x = referenceDataset.GetRasterBand(k).ReadAsArray(x0, y0, cols, rows).astype(np.float64).ravel()
         y = targetDataset.GetRasterBand(k).ReadAsArray(x0, y0, cols, rows).astype(np.float64).ravel()
         b_slope, a_intercept, R = orthoregress(y[idx], x[idx])
         print(f'band: {k}  slope: {b_slope:.6f}  intercept: {a_intercept:.6f}  correlation: {R:.6f}')
-        my = float(np.max(y[idx]))
-        if (j < 7) and graphics:
-            plt.subplot(2, 3, j)
-            plt.plot(y[idx], x[idx], '.')
-            plt.plot([0, my], [a_intercept, a_intercept + b_slope * my])
-            plt.title(f'Band {k}')
-            if ((j < 4) and (bands < 4)) or j > 3:
-                plt.xlabel('Target')
-            if (j == 1) or (j == 4):
-                plt.ylabel('Reference')
+        if graphics and j <= 6:
+            row, col = divmod(j - 1, 3)
+            ax = axes[row][col]
+
+            xt = y[idx]          # target values at no-change pixels (x-axis)
+            yr = x[idx]          # reference values at no-change pixels (y-axis)
+
+            # Independent percentile-based axis limits — each axis is framed
+            # tightly around its own data. Using one shared range for both
+            # axes would push the data cluster into a corner whenever the
+            # radiometric drift is large (e.g. target ~50, reference ~150).
+            x_lo = float(np.percentile(xt, 1))
+            x_hi = float(np.percentile(xt, 99))
+            y_lo = float(np.percentile(yr, 1))
+            y_hi = float(np.percentile(yr, 99))
+            # Add 3% padding so points/lines aren't flush against the frame
+            pad_x = 0.03 * (x_hi - x_lo) if x_hi > x_lo else 1.0
+            pad_y = 0.03 * (y_hi - y_lo) if y_hi > y_lo else 1.0
+            x_lo, x_hi = x_lo - pad_x, x_hi + pad_x
+            y_lo, y_hi = y_lo - pad_y, y_hi + pad_y
+
+            # Vertical-residual RMSE of the fit — informative even though
+            # orthoregress minimizes perpendicular distance, because it's the
+            # quantity actually applied to the target band on output.
+            residuals = yr - (a_intercept + b_slope * xt)
+            rmse = float(np.sqrt(np.mean(residuals ** 2)))
+
+            # 1:1 reference line: only draw the segment of y=x that actually
+            # falls inside the visible (x_lo..x_hi, y_lo..y_hi) window. If
+            # there is no overlap (data is entirely above or below the
+            # diagonal) the line is simply omitted.
+            one_lo = max(x_lo, y_lo)
+            one_hi = min(x_hi, y_hi)
+            draw_one_to_one = one_hi > one_lo
+
+            # Draw order: 1:1 reference behind, scatter mid, fit line on top.
+            if draw_one_to_one:
+                ax.plot([one_lo, one_hi], [one_lo, one_hi],
+                        color='0.6', linestyle=':', lw=0.8, alpha=0.7,
+                        zorder=1, label='1:1')
+            ax.scatter(xt, yr, s=1, alpha=0.25,
+                       color='steelblue', rasterized=True, zorder=2)
+            line_x = np.array([x_lo, x_hi])
+            ax.plot(line_x, a_intercept + b_slope * line_x,
+                    color='crimson', lw=1.6, zorder=3,
+                    label=f'fit: y = {a_intercept:.2f} + {b_slope:.3f}·x')
+
+            ax.set_title(f'Band {k}   R²={R ** 2:.3f}   RMSE={rmse:.2f}',
+                         fontsize=10)
+            ax.set_xlabel('Target')
+            ax.set_ylabel('Reference')
+            ax.set_xlim(x_lo, x_hi)
+            ax.set_ylim(y_lo, y_hi)
+            # Note: no aspect='equal' — equal aspect with independent axes
+            # would distort the visible plot region; we let matplotlib choose
+            # the aspect that fills each subplot.
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='upper left', fontsize=8, framealpha=0.85)
         aa.append(a_intercept)
         bb.append(b_slope)
         outBand = outDataset.GetRasterBand(j)
@@ -164,9 +245,21 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None,
         outBand.WriteArray(normalized.reshape(rows, cols), 0, 0)
         outBand.FlushCache()
 
-    if graphics:
-        plt.show()
-        plt.close()
+    if graphics and fig is not None:
+        # Hide unused axes when bands < grid capacity (e.g. 4 bands → 2×3 = 6 slots, 2 empty)
+        for idx_ax in range(bands, plot_nrows * plot_ncols):
+            r, c = divmod(idx_ax, plot_ncols)
+            axes[r][c].set_visible(False)
+        # Reserve some headroom for the multi-line suptitle
+        fig.tight_layout(rect=[0, 0, 1, 0.93])
+        # Save next to the normalized raster, same basename + _radcal.png
+        plot_path = os.path.join(
+            os.path.dirname(os.path.abspath(outfn)),
+            os.path.splitext(os.path.basename(outfn))[0] + '_radcal.png'
+        )
+        fig.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        print(f'radcal plot saved to: {plot_path}')
     referenceDataset = None
     targetDataset = None
     outDataset = None

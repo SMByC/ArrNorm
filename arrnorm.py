@@ -35,7 +35,7 @@ IDEAM, Colombia
 
 class Normalization:
     def __init__(self, count, img_ref, img_target, max_iters, threshold,
-                 reg, onlyreg, noneg, mask, warpband, chunksize):
+                 reg, onlyreg, noneg, mask, warpband, chunksize, graphics):
         self.count = count
         self.img_ref = img_ref
         self.img_target = img_target
@@ -48,6 +48,7 @@ class Normalization:
         self.mask = mask
         self.warpband = warpband
         self.chunksize = chunksize
+        self.graphics = graphics
 
         self.img_ref_clip = None
         self.img_imad = None
@@ -193,7 +194,7 @@ class Normalization:
               f"Radcal process for: {self.ref_text} {os.path.basename(self.img_target)}"
               f" with iMad image: {os.path.basename(self.img_imad)}")
         self.img_norm = radcal.main(self.img_imad, ncpThresh=self.threshold,
-                                    out_dtype=self.out_dtype)
+                                    out_dtype=self.out_dtype, graphics=self.graphics)
 
     def no_negative_value(self, image):
         print(f'\n======================================\n'
@@ -305,6 +306,9 @@ def main():
     arguments.add_argument('-onlyreg', action='store_true', default=False,
                            help='only makes registration, no iMad normalize, requires "-reg"',
                            required=False)
+    arguments.add_argument('-g', action='store_true', default=False,
+                           help='save a per-band RadCal diagnostic plot',
+                           required=False)
     arguments.add_argument('images', type=str, nargs='+',
                            help='images to apply the iMad normalization')
 
@@ -318,7 +322,7 @@ def main():
     with multiprocessing.Pool(number_of_processes) as pool:
         TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t,
                                   arg.reg, arg.onlyreg, arg.noneg, arg.m,
-                                  arg.warpband, arg.chunksize))
+                                  arg.warpband, arg.chunksize, arg.g))
                  for img_count, img_target in enumerate(arg.images)]
         for _ in pool.imap(meta_process, TASKS):
             pass
