@@ -12,21 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system GDAL
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y gdal-bin libgdal-dev
-
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          python-version: "3.12"
-          enable-cache: true
-
       - name: Install dependencies
         run: |
-          uv venv
-          uv pip install numpy scipy matplotlib pytest
-          uv pip install --no-build-isolation "gdal==$(gdal-config --version)"
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            python3-gdal \
+            python3-numpy \
+            python3-scipy \
+            python3-matplotlib \
+            python3-pytest
 
       - name: Run tests
-        run: uv run --no-project pytest tests/ -v
+        run: python3 -m pytest tests/ -v
