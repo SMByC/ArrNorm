@@ -25,9 +25,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv venv
-          uv pip install \
-            "gdal==$(gdal-config --version)" \
-            numpy scipy matplotlib pytest
+          uv pip install numpy scipy matplotlib pytest
+          uv pip install --no-build-isolation "gdal==$(gdal-config --version)"
 
       - name: Run tests
         run: uv run --no-project pytest tests/ -v
