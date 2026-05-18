@@ -30,4 +30,4 @@ jobs:
             numpy scipy matplotlib pytest
 
       - name: Run tests
-        run: uv run pytest tests/ -v
+        run: uv run --no-project pytest tests/ -v
