@@ -12,20 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up conda
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Install system GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gdal-bin libgdal-dev
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          python-version: "3.11"
-          channels: conda-forge,defaults
-          channel-priority: strict
-          activate-environment: arrnorm-test
-          # Cache the resolved conda environment across identical runs.
-          cache-environment: true
+          python-version: "3.12"
+          enable-cache: true
 
       - name: Install dependencies
-        shell: bash -el {0}
-        run: conda install -y gdal numpy scipy matplotlib
+        run: |
+          uv venv
+          uv pip install \
+            "gdal==$(gdal-config --version)" \
+            numpy scipy matplotlib pytest
 
       - name: Run tests
-        shell: bash -el {0}
-        run: python -m pytest tests/ -v
+        run: uv run pytest tests/ -v
