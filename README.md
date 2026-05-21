@@ -92,17 +92,33 @@ Normalize a single target against a reference:
 python arrnorm.py -ref reference.tif target.tif
 ```
 
-Normalize three targets in parallel with 15 iterations:
+Normalize three targets in parallel with a strong convergence threshold (more iterations, more precise):
 
 ```bash
-python arrnorm.py -i 15 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
+python arrnorm.py --convergence 0.999 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
 ```
+
+Normalize with a stricter NCP threshold (fewer, more reliable invariant pixels):
+
+```bash
+python arrnorm.py --ncp-threshold 0.99 -ref reference.tif target.tif
+```
+
+Normalize with image-to-image registration (when the reference and target are slightly misaligned):
+
+```bash
+python arrnorm.py -ref reference.tif -reg target.tif
+```
+
+> **Registration (`-reg`)** compensates for sub-pixel geometric misalignment between the reference and target images before normalization. It works in the frequency domain (phase correlation) to estimate an X/Y translation shift and then warps the target to match the reference. Use this when the images are close but not perfectly aligned — for example, when they come from different satellites or orbits. If the images are already well aligned, skip this flag to save time.
 
 Normalize with registration, mask, and no-negative clipping:
 
 ```bash
 python arrnorm.py -ref reference.tif -reg -m -noneg target.tif
 ```
+
+> This combines registration (`-reg`) with a validity mask (`-m`) and suppression of negative reflectance values (`-noneg`), a common combination for producing clean, analysis-ready outputs.
 
 Full help:
 
