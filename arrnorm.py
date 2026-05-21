@@ -34,14 +34,15 @@ IDEAM, Colombia
 
 
 class Normalization:
-    def __init__(self, count, img_ref, img_target, max_iters, threshold,
-                 reg, onlyreg, noneg, mask, warpband, chunksize, graphics):
+    def __init__(self, count, img_ref, img_target, max_iters, conv_threshold,
+                 ncp_threshold, reg, onlyreg, noneg, mask, warpband, chunksize, graphics):
         self.count = count
         self.img_ref = img_ref
         self.img_target = img_target
         self.ref_text = f"Image ({self.count + 1})"
         self.max_iters = max_iters
-        self.threshold = threshold
+        self.conv_threshold = conv_threshold
+        self.ncp_threshold = ncp_threshold
         self.reg = reg
         self.onlyreg = onlyreg
         self.noneg = noneg
@@ -190,7 +191,8 @@ class Normalization:
               f"iMad process for: {self.ref_text} {os.path.basename(self.img_target)}")
         img_target = self.img_target_reg if self.reg else self.img_target
         self.img_imad = iMad.main(self.img_ref_clip, img_target,
-                                  ref_text=self.ref_text, max_iters=self.max_iters)
+                                   ref_text=self.ref_text, max_iters=self.max_iters,
+                                   conv_threshold=self.conv_threshold)
 
     def register(self):
         print(f"\n======================================\n"
@@ -203,8 +205,8 @@ class Normalization:
         print(f"\n======================================\n"
               f"Radcal process for: {self.ref_text} {os.path.basename(self.img_target)}"
               f" with iMad image: {os.path.basename(self.img_imad)}")
-        self.img_norm = radcal.main(self.img_imad, ncpThresh=self.threshold,
-                                    out_dtype=self.out_dtype, graphics=self.graphics)
+        self.img_norm = radcal.main(self.img_imad, ncp_threshold=self.ncp_threshold,
+                                     out_dtype=self.out_dtype, graphics=self.graphics)
 
     def no_negative_value(self, image):
         print(f'\n======================================\n'
@@ -296,9 +298,15 @@ def main():
     arguments.add_argument('-ref', type=str,
                            help='reference image for iMad normalize', required=True)
     arguments.add_argument('-i', type=int, default=30,
-                           help='number of iterations', required=False)
-    arguments.add_argument('-t', type=float, default=0.95,
-                           help='no-change probability threshold', required=False)
+                            help='maximum number of IR-MAD iterations', required=False)
+    arguments.add_argument('--convergence', type=float, default=0.99,
+                             help='convergence level for IR-MAD; iteration stops '
+                                  'when delta < 1 - convergence (default: 0.99)',
+                             required=False)
+    arguments.add_argument('--ncp-threshold', type=float, default=0.95,
+                             help='no-change probability threshold for RadCal; '
+                                  'pixels with NCP > ncp_threshold enter the regression (default: 0.95)',
+                             required=False)
     arguments.add_argument('-p', type=int, default=multiprocessing.cpu_count(),
                            help='number of process/threads', required=False)
     arguments.add_argument('-m', nargs='?', const=None, default=False, type=float,
@@ -332,8 +340,8 @@ def main():
     print(f'Creating {number_of_processes} multiprocesses')
 
     with multiprocessing.Pool(number_of_processes) as pool:
-        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.t,
-                                  arg.reg, arg.onlyreg, arg.noneg, arg.m,
+        TASKS = [(Normalization, (img_count, arg.ref, img_target, arg.i, arg.convergence,
+                                  arg.ncp_threshold, arg.reg, arg.onlyreg, arg.noneg, arg.m,
                                   arg.warpband, arg.chunksize, arg.g))
                  for img_count, img_target in enumerate(arg.images)]
         for _ in pool.imap(meta_process, TASKS):

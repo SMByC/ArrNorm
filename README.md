@@ -30,11 +30,15 @@ Under the null hypothesis of *no change*, the standardized MAD variates
 
 follow a chi-squared distribution with *K* degrees of freedom. The **no-change probability** NCP = P(χ² ≥ observed) is then used as a pixel weight for the next iteration: stable pixels get weight ≈ 1, changed pixels get weight ≈ 0.
 
-The **iterative reweighting** loop drives the covariance statistics toward being estimated entirely from invariant ground, progressively suppressing changed pixels. Convergence is measured by Δ = max|ρ_new − ρ_old|. The algorithm runs for up to `-i` iterations and keeps the result with the smallest Δ as the final parameter set.
+The **iterative reweighting** loop drives the covariance statistics toward being estimated entirely from invariant ground, progressively suppressing changed pixels. Two independent thresholds govern the pipeline:
+
+- **Convergence level** τ_conv: iteration stops when δ = max|ρ_new − ρ_old| falls below 1 − τ_conv, or when the maximum number of iterations is reached. Higher values enforce tighter convergence (e.g. τ_conv = 0.99 stops when δ < 0.01). When the iteration limit is reached, the result with the smallest δ is selected automatically.
+
+- **No-change probability threshold** τ_ncp: after IR-MAD converges, only pixels whose no-change probability NCP exceeds τ_ncp are admitted to the per-band orthogonal regression in RadCal. Higher values select fewer but more reliable invariant pixels.
 
 ### 3. RadCal — radiometric calibration
 
-Using the no-change pixels identified by IR-MAD (those with NCP > threshold `-t`), ArrNorm fits a per-band **orthogonal (total-least-squares) regression** of target onto reference:
+Using the no-change pixels identified by IR-MAD (those with NCP > τ_ncp), ArrNorm fits a per-band **orthogonal (total-least-squares) regression** of target onto reference:
 
 ```
 Y_normalized = a + b · Y_target
@@ -70,7 +74,8 @@ python arrnorm.py -ref reference.tif target.tif
 | `-ref FILE` | *(required)* | Reference image. Must overlap the target(s). |
 | `images` | *(required)* | One or more target images to normalize. |
 | `-i N` | `30` | Maximum number of IR-MAD iterations. |
-| `-t F` | `0.95` | No-change probability threshold. Pixels with NCP > t are used for regression. Higher values are more selective. |
+| `--convergence F` | `0.99` | Convergence level τ_conv. IR-MAD stops when δ < 1 − τ_conv. See §2. |
+| `--ncp-threshold F` | `0.95` | No-change probability threshold τ_ncp. Pixels with NCP > τ_ncp enter the regression. See §3. |
 | `-p N` | all CPUs | Number of parallel processes (one per target image). |
 | `-m [VALUE]` | off | Create a binary validity mask alongside the normalized output. Optionally specify the nodata value (e.g. `-m 255`); default is the image's own nodata value, or 0 if none is defined. |
 | `-noneg` | off | Convert negative normalized values to NoData (0). Useful for reflectance outputs. |

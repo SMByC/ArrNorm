@@ -42,7 +42,7 @@ usage = '''
 Usage:
 --------------------------------------------------------
 python radcal.py [-p "bandPositions"] [-d "spatialDimensions"]
-                 [-t no-change prob threshold] imadFile [fullSceneFile]
+                 [--ncp-threshold no-change prob threshold] imadFile [fullSceneFile]
 --------------------------------------------------------
 '''
 
@@ -71,7 +71,7 @@ def _clip_for_dtype(arr, gdal_dtype):
     return np.clip(arr, rng[0], rng[1])
 
 
-def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None,
+def main(img_imad, ncp_threshold=0.95, pos=None, dims=None, img_target=None,
          graphics=False, out_dtype=None):
 
     if img_target is not None:
@@ -119,17 +119,17 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None,
     # accurate than 1 - cdf() in the relevant upper tail.
     chisqr = imadDataset.GetRasterBand(imadbands).ReadAsArray(0, 0, cols, rows).ravel()
     ncp = stats.chi2.sf(chisqr, imadbands - 1)
-    idx = np.where(ncp > ncpThresh)
+    idx = np.where(ncp > ncp_threshold)
     print(time.asctime())
     print(f'reference: {referencefn}')
     print(f'target   : {targetfn}')
-    print(f'no-change probability threshold: {ncpThresh}')
+    print(f'no-change probability threshold: {ncp_threshold}')
     print(f'no-change pixels: {len(idx[0])}')
 
     if len(idx[0]) < 2:
         sys.stderr.write(
             f"Error: only {len(idx[0])} no-change pixels selected "
-            f"(threshold={ncpThresh}). Lower -t to keep more pixels.\n")
+            f"(threshold={ncp_threshold}). Lower -t to keep more pixels.\n")
         sys.exit(1)
 
     start = time.time()
@@ -170,7 +170,7 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None,
             f'reference: {os.path.basename(referencefn)}\n'
             f'no-change pixels: {n_nochange:,} / {n_total:,} '
             f'({pct_nochange:.2f}%)   '
-            f'NCP threshold: {ncpThresh}',
+            f'NCP threshold: {ncp_threshold}',
             fontsize=10,
         )
 
@@ -300,10 +300,10 @@ def main(img_imad, ncpThresh=0.95, pos=None, dims=None, img_target=None,
 
 
 if __name__ == '__main__':
-    options, args = getopt.getopt(sys.argv[1:], 'hnp:d:t:')
+    options, args = getopt.getopt(sys.argv[1:], 'hnp:d:', ['ncp-threshold='])
     pos = None
     dims = None
-    ncpThresh = 0.95
+    ncp_threshold = 0.95
     fsfn = None
     graphics = True
     for option, value in options:
@@ -316,8 +316,8 @@ if __name__ == '__main__':
             pos = eval(value)
         elif option == '-d':
             dims = eval(value)
-        elif option == '-t':
-            ncpThresh = float(value)
+        elif option == '--ncp-threshold':
+            ncp_threshold = float(value)
     if (len(args) != 1) and (len(args) != 2):
         print('Incorrect number of arguments')
         print(usage)
@@ -326,4 +326,4 @@ if __name__ == '__main__':
     if len(args) == 2:
         fsfn = args[1]
 
-    main(imadfn, ncpThresh, pos, dims, fsfn, graphics=graphics)
+    main(imadfn, ncp_threshold, pos, dims, fsfn, graphics=graphics)

@@ -45,7 +45,7 @@ def _read_block(raster_bands, x0, y0, cols, n_rows):
     return tile
 
 
-def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None,
+def main(img_ref, img_target, max_iters=30, conv_threshold=0.99, band_pos=None, dims=None,
          graphics=False, ref_text='', block_rows=DEFAULT_BLOCK_ROWS):
     gdal.AllRegister()
     start = time.time()  # was previously undefined at print-elapsed time (bug)
@@ -126,8 +126,9 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None,
     results = []
     sigMADs = means1 = means2 = A = B = None
 
-    print(f'\nStop condition: max iteration {max_iters} with auto selection\n'
-          f'of the best delta for the final result:')
+    delta_thres = 1.0 - conv_threshold
+    print(f'\nStop condition: max iterations ({max_iters}) or delta < {round(delta_thres, 5)}\n'
+          f'with auto selection of the best delta for the final result:')
     print(f' {ref_text + " ->"} iteration: 0, delta: 1.0 ({time.asctime()})')
 
     current_iter = 0
@@ -218,6 +219,16 @@ def main(img_ref, img_target, max_iters=30, band_pos=None, dims=None,
             results.append((delta, {"iter": current_iter, "A": A, "B": B,
                                     "means1": means1, "means2": means2,
                                     "sigMADs": sigMADs, "rho": rho}))
+
+            # Convergence check: stop when the maximum change in canonical
+            # correlations falls below the threshold derived from conv_threshold.
+            # Skip on the first iteration because oldrho starts at zero,
+            # making delta a magnitude estimate rather than a convergence measure.
+            if current_iter > 1 and delta < delta_thres:
+                print(f' Convergence reached at iteration {current_iter} '
+                      f'(delta={round(delta, 5)} < {round(delta_thres, 5)})')
+                break
+
         except Exception as err:
             print(f"\n WARNING: exception at iteration {current_iter}: {err}\n"
                   f" Falling back to best-delta result computed so far. "

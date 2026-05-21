@@ -65,7 +65,8 @@ def _run(workdir, ref_name, target_name="target.tif", **kw):
         img_ref=str(workdir / ref_name),
         img_target=str(workdir / target_name),
         max_iters=kw.get("max_iters", 30),
-        threshold=kw.get("threshold", 0.95),
+        conv_threshold=kw.get("conv_threshold", 0.99),
+        ncp_threshold=kw.get("ncp_threshold", 0.95),
         reg=False,
         onlyreg=False,
         noneg=False,
@@ -150,15 +151,15 @@ class TestPrealignedRef:
 
 
 # ---------------------------------------------------------------------------
-# 3. Iteration count variants
+# 3. Convergence threshold variants
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("iters,expected_file", [
-    (5,  "target_norm_iter5.tif"),
-    (15, "target_norm_iter15.tif"),
+@pytest.mark.parametrize("conv_thresh,expected_file", [
+    (0.95,  "target_norm_conv095.tif"),
+    (0.999, "target_norm_conv0999.tif"),
 ])
-def test_iteration_count(workdir, iters, expected_file):
-    norm = _run(workdir, "ref_adjusted2target.tif", max_iters=iters)
+def test_convergence_threshold(workdir, conv_thresh, expected_file):
+    norm = _run(workdir, "ref_adjusted2target.tif", conv_threshold=conv_thresh)
     _check_properties(norm)
     _regression(norm, expected_file)
 
@@ -168,7 +169,7 @@ def test_iteration_count(workdir, iters, expected_file):
 # ---------------------------------------------------------------------------
 
 def test_threshold_090(workdir):
-    norm = _run(workdir, "ref_adjusted2target.tif", threshold=0.90)
+    norm = _run(workdir, "ref_adjusted2target.tif", ncp_threshold=0.90)
     _check_properties(norm)
     _regression(norm, "target_norm_t090.tif")
 
