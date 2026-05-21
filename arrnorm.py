@@ -6,8 +6,7 @@ import sys
 import argparse
 import multiprocessing
 from osgeo import gdal
-from osgeo.gdalconst import GA_ReadOnly, GA_Update
-from osgeo_utils.gdal_calc import Calc as gdal_calc
+from osgeo.gdalconst import GA_ReadOnly
 
 # add project dir to pythonpath (parent of this file is the project root)
 project_dir = os.path.dirname(os.path.realpath(__file__))
@@ -15,6 +14,8 @@ if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
 
 from core import iMad, radcal, register
+from core import raster_ops
+
 
 header = '''
 ==============================================================
@@ -66,15 +67,14 @@ class Normalization:
 
         self.out_dtype = max(ref_dtype_code, target_dtype_code)
 
-        # Resolve mask nodata: explicit value > image nodata > 0
         self.mask = (mask is not False)
-        if self.mask:
-            if isinstance(mask, float):
-                self.mask_nodata = mask
-            else:
-                self.mask_nodata = target_nodata if target_nodata is not None else 0
+
+        # Resolve nodata: explicit -m value > image nodata > 0.
+        # Always resolved so -noneg can use it even without -m.
+        if isinstance(mask, float):
+            self.mask_nodata = mask
         else:
-            self.mask_nodata = 0
+            self.mask_nodata = target_nodata if target_nodata is not None else 0
 
     def run(self):
         print(f"\nPROCESSING IMAGE: {os.path.basename(self.img_target)} ({self.count + 1})")
@@ -213,9 +213,10 @@ class Normalization:
               f'Converting negative values for: {self.ref_text} {os.path.basename(image)}')
         tmp_image = image.replace('.tif', '_tmp.tif')
         try:
-            gdal_calc(A=image, outfile=tmp_image, calc="A*(A>=0)", NoDataValue=0,
-                      allBands="A", overwrite=True, quiet=True,
-                      creation_options=["BIGTIFF=YES"])
+            raster_ops.no_negative_value(
+                image, tmp_image,
+                nodata_value=self.mask_nodata,
+                creation_options=['BIGTIFF=YES'])
             os.remove(image)
             os.rename(tmp_image, image)
             print(f'Negative values converted successfully: {os.path.basename(image)}')
@@ -233,16 +234,8 @@ class Normalization:
             os.path.dirname(os.path.abspath(img_to_process)),
             filename + "_mask" + ext)
         try:
-            gdal_calc(A=img_to_process, outfile=self.mask_file, type=gdal.GDT_Byte,
-                      calc=f"1*(A!={self.mask_nodata})", overwrite=True, quiet=True,
-                      creation_options=["COMPRESS=PACKBITS", "NBITS=1"])
-            colors = gdal.ColorTable()
-            colors.SetColorEntry(0, (0, 0, 0, 255))
-            colors.SetColorEntry(1, (0, 255, 0, 255))
-            mask_ds = gdal.Open(self.mask_file, GA_Update)
-            if mask_ds is not None:
-                mask_ds.GetRasterBand(1).SetRasterColorTable(colors)
-                mask_ds = None
+            raster_ops.make_mask(img_to_process, self.mask_file,
+                                 nodata_value=self.mask_nodata)
             print(f'Mask created successfully: {os.path.basename(self.mask_file)}')
         except Exception as e:
             print(f'\nError creating mask: {e}')
@@ -253,9 +246,10 @@ class Normalization:
               f'Applying mask for: {self.ref_text} {os.path.basename(self.img_norm)}')
         tmp_img_norm = self.img_norm.replace('.tif', '_tmp.tif')
         try:
-            gdal_calc(A=self.img_norm, B=self.mask_file, outfile=tmp_img_norm,
-                      calc="A*(B==1)", NoDataValue=self.mask_nodata, allBands="A",
-                      overwrite=True, quiet=True, creation_options=["BIGTIFF=YES"])
+            raster_ops.apply_mask(
+                self.img_norm, self.mask_file, tmp_img_norm,
+                nodata_value=self.mask_nodata,
+                creation_options=['BIGTIFF=YES'])
             os.remove(self.img_norm)
             os.rename(tmp_img_norm, self.img_norm)
             print(f'Mask applied successfully: {os.path.basename(self.mask_file)}')
@@ -316,7 +310,8 @@ def main():
     arguments.add_argument('-reg', action='store_true', default=False,
                            help='registration image-image in frequency domain', required=False)
     arguments.add_argument('-noneg', action='store_true', default=False,
-                           help='convert all negative values to nodata (0) for output', required=False)
+                           help='convert negative pixel values to the output nodata value. '
+                                'Existing nodata pixels are preserved.', required=False)
     arguments.add_argument('-warpband', type=int, default=2,
                            help='number of target band for make registration, requires "-reg"',
                            required=False)
