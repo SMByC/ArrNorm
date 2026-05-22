@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arrnorm"
-version = "26.05"
-description = "Automatic relative radiometric normalization using IR-MAD"
+version = "26.5"
+description = "Apply the automatic relative radiometric normalization to the target image based on reference image using the IR-MAD algorithm to locate invariant/variant pixels for a relative radiometric normalization"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.9"
