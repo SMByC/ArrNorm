@@ -54,17 +54,45 @@ Orthogonal regression is used because both images contain measurement noise, so 
 
 ## Installation
 
-Using a Conda environment (recommended):
+**Option 1 — Conda environment (recommended):**
+
+GDAL must be installed through conda before pip to ensure the Python bindings match the system library.
 
 ```bash
 conda install -c conda-forge gdal numpy scipy matplotlib
 pip install https://github.com/SMByC/ArrNorm/archive/master.zip
 ```
 
+**Option 2 — Python virtual environment (venv):**
+
+GDAL must be installed system-wide first (e.g. `sudo apt install python3-gdal` on Debian/Ubuntu or via your OS package manager).
+
+```bash
+python -m venv arrnorm-env
+source arrnorm-env/bin/activate        # Windows: arrnorm-env\Scripts\activate
+pip install https://github.com/SMByC/ArrNorm/archive/master.zip
+```
+
+To deactivate the environment when done:
+
+```bash
+deactivate
+```
+
+**Option 3 — pip only (if GDAL is already installed system-wide):**
+
+Install to a specific directory:
+
+```bash
+pip install --target=/path/to/install ArrNorm.zip
+```
+
+Executable arrnorm will be installed to `/path/to/install/bin/arrnorm`
+
 ## Usage
 
 ```bash
-python arrnorm.py -ref reference.tif target.tif
+arrnorm -ref reference.tif target.tif
 ```
 
 ### Parameters
@@ -89,25 +117,25 @@ python arrnorm.py -ref reference.tif target.tif
 Normalize a single target against a reference:
 
 ```bash
-python arrnorm.py -ref reference.tif target.tif
+arrnorm -ref reference.tif target.tif
 ```
 
 Normalize three targets in parallel with a strong convergence threshold (more iterations, more precise):
 
 ```bash
-python arrnorm.py --convergence 0.999 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
+arrnorm --convergence 0.999 -p 3 -ref reference.tif target01.tif target02.tif target03.tif
 ```
 
 Normalize with a stricter NCP threshold (fewer, more reliable invariant pixels):
 
 ```bash
-python arrnorm.py --ncp-threshold 0.99 -ref reference.tif target.tif
+arrnorm --ncp-threshold 0.99 -ref reference.tif target.tif
 ```
 
 Normalize with image-to-image registration (when the reference and target are slightly misaligned):
 
 ```bash
-python arrnorm.py -ref reference.tif -reg target.tif
+arrnorm -ref reference.tif -reg target.tif
 ```
 
 > **Registration (`-reg`)** compensates for sub-pixel geometric misalignment between the reference and target images before normalization. It works in the frequency domain (phase correlation) to estimate an X/Y translation shift and then warps the target to match the reference. Use this when the images are close but not perfectly aligned — for example, when they come from different satellites or orbits. If the images are already well aligned, skip this flag to save time.
@@ -115,7 +143,7 @@ python arrnorm.py -ref reference.tif -reg target.tif
 Normalize with registration, mask, and no-negative clipping:
 
 ```bash
-python arrnorm.py -ref reference.tif -reg -m -noneg target.tif
+arrnorm -ref reference.tif -reg -m -noneg target.tif
 ```
 
 > This combines registration (`-reg`) with a validity mask (`-m`) and suppression of negative reflectance values (`-noneg`), a common combination for producing clean, analysis-ready outputs.
@@ -123,7 +151,7 @@ python arrnorm.py -ref reference.tif -reg -m -noneg target.tif
 Full help:
 
 ```bash
-python arrnorm.py -h
+arrnorm -h
 ```
 
 ## References

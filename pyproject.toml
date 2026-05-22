@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arrnorm"
-dynamic = ["version"]
+version = "26.05"
 description = "Automatic relative radiometric normalization using IR-MAD"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "GPL-3.0-or-later"}
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     {name = "Xavier C. Llano", email = "xavier.corredor.llano@gmail.com"},
 ]
@@ -24,11 +24,11 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Environment :: Console",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
@@ -43,6 +43,12 @@ dependencies = [
     "matplotlib",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
 [project.urls]
 Homepage   = "https://github.com/SMByC/ArrNorm"
 Repository = "https://github.com/SMByC/ArrNorm"
@@ -55,12 +61,12 @@ arrnorm = "arrnorm:main"
 # Setuptools configuration
 # ---------------------------------------------------------------------------
 
-[tool.setuptools.dynamic]
-version = {attr = "core.__version__"}
+[tool.setuptools]
+# arrnorm.py is the CLI entry point; include it as a top-level module so
+# the console_scripts entry point can import it after installation.
+py-modules = ["arrnorm"]
 
 [tool.setuptools.packages.find]
-# Only package the core/ library; arrnorm.py (the CLI) is installed as a
-# console_scripts entry point, not as a package.
 include = ["core*"]
 
 # ---------------------------------------------------------------------------
