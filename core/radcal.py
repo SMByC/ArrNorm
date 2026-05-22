@@ -15,6 +15,7 @@
 #  License: GPLv2+
 # ******************************************************************************
 
+import ast
 import getopt
 import os
 import sys
@@ -313,9 +314,9 @@ if __name__ == '__main__':
         elif option == '-n':
             graphics = False
         elif option == '-p':
-            pos = eval(value)
+            pos = ast.literal_eval(value)
         elif option == '-d':
-            dims = eval(value)
+            dims = ast.literal_eval(value)
         elif option == '--ncp-threshold':
             ncp_threshold = float(value)
     if (len(args) != 1) and (len(args) != 2):
