@@ -64,6 +64,11 @@ def main(img_ref, img_target, warpband=2, chunksize=None):
         sys.stderr.write('Error: input image(s) could not be opened.\n')
         sys.exit(1)
 
+    max_band = min(inDataset1.RasterCount, inDataset2.RasterCount)
+    if warpband > max_band:
+        print(f'warpband {warpband} exceeds available bands ({max_band}); falling back to band 1')
+        warpband = 1
+
     ref_band = inDataset1.GetRasterBand(warpband)
     tgt_band = inDataset2.GetRasterBand(warpband)
 
